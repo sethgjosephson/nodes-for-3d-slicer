@@ -4,10 +4,14 @@ set(MODULE_TITLE "Node Editor")
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
   NodeGraph/__init__.py
+  NodeGraph/constants.py
   NodeGraph/canvas.py
-  NodeGraph/node.py
-  NodeGraph/port.py
-  NodeGraph/edge.py
+  NodeGraph/scene.py
+  NodeGraph/node_item.py
+  NodeGraph/port_item.py
+  NodeGraph/edge_item.py
+  NodeGraph/search_popup.py
+  NodeGraph/viewer_router.py
   NodeGraph/executor.py
   Nodes/__init__.py
   Nodes/base_node.py
@@ -16,6 +20,7 @@ set(MODULE_PYTHON_SCRIPTS
   Nodes/segment_nodes.py
   Nodes/register_nodes.py
   Nodes/viz_nodes.py
+  Nodes/layout_node.py
   )
 
 set(MODULE_PYTHON_RESOURCES
