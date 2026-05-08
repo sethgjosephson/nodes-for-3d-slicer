@@ -1,64 +1,133 @@
-"""Image filter nodes: threshold, smooth, etc."""
+"""Image filter nodes: threshold, smooth, and more."""
 
 import slicer
 import sitkUtils
 import SimpleITK as sitk
-from NodeGraph.node import SlicerBaseNode
+
+from .base_node import SlicerBaseNode, VOLUME
 
 
 class ThresholdNode(SlicerBaseNode):
-    __identifier__ = "slicer.filters"
-    NODE_NAME = "Threshold"
-    NODE_COLOR = (100, 130, 80)
+    NODE_NAME    = "Threshold"
+    CATEGORY     = "Filters"
 
-    INPUT_PORTS = [("volume_in", "Volume")]
-    OUTPUT_PORTS = [("volume_out", "Volume")]
+    INPUT_PORTS  = [("volume_in",  "Volume", VOLUME)]
+    OUTPUT_PORTS = [("volume_out", "Volume", VOLUME)]
 
-    def __init__(self):
-        super().__init__()
-        self.add_float_input("lower", "Lower", value=100.0)
-        self.add_float_input("upper", "Upper", value=500.0)
+    PROPERTIES = [
+        {'name': 'lower', 'label': 'Lower',  'type': 'float',
+         'default': 100.0, 'min': -2000.0, 'max': 5000.0},
+        {'name': 'upper', 'label': 'Upper',  'type': 'float',
+         'default': 500.0, 'min': -2000.0, 'max': 5000.0},
+        {'name': 'outside', 'label': 'Outside Value', 'type': 'float',
+         'default': 0.0, 'min': -2000.0, 'max': 5000.0},
+    ]
 
-    def execute(self, inputs: dict) -> dict:
-        node = inputs.get("volume_in")
+    def execute(self, inputs):
+        node = inputs.get('volume_in')
         if node is None:
             raise ValueError("Threshold: no input volume connected.")
 
-        lower = self.get_property("lower")
-        upper = self.get_property("upper")
+        lower   = self.get_property('lower')
+        upper   = self.get_property('upper')
+        outside = self.get_property('outside')
 
-        image = sitkUtils.PullVolumeFromSlicer(node)
-        result = sitk.BinaryThreshold(image, lowerThreshold=lower, upperThreshold=upper)
+        img    = sitkUtils.PullVolumeFromSlicer(node)
+        result = sitk.BinaryThreshold(
+            img, lowerThreshold=lower, upperThreshold=upper,
+            insideValue=1, outsideValue=outside)
 
-        output_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
-        output_node.SetName(f"{node.GetName()}_threshold")
-        sitkUtils.PushVolumeToSlicer(result, output_node)
-        return {"volume_out": output_node}
+        out = self._get_or_create_output('volume_out',
+                                         node.GetName() + '_thresh')
+        sitkUtils.PushVolumeToSlicer(result, out)
+        return {'volume_out': out}
+
+    def route_to_viewer(self):
+        node = self._cache.get('volume_out')
+        if node:
+            from .io_nodes import _route_volume_to_slices
+            _route_volume_to_slices(node)
 
 
 class GaussianSmoothNode(SlicerBaseNode):
-    __identifier__ = "slicer.filters"
-    NODE_NAME = "Gaussian Smooth"
-    NODE_COLOR = (100, 130, 80)
+    NODE_NAME    = "Gaussian Smooth"
+    CATEGORY     = "Filters"
 
-    INPUT_PORTS = [("volume_in", "Volume")]
-    OUTPUT_PORTS = [("volume_out", "Volume")]
+    INPUT_PORTS  = [("volume_in",  "Volume", VOLUME)]
+    OUTPUT_PORTS = [("volume_out", "Volume", VOLUME)]
 
-    def __init__(self):
-        super().__init__()
-        self.add_float_input("sigma", "Sigma (mm)", value=1.0)
+    PROPERTIES = [
+        {'name': 'sigma', 'label': 'Sigma (mm)', 'type': 'float',
+         'default': 1.0, 'min': 0.1, 'max': 20.0},
+    ]
 
-    def execute(self, inputs: dict) -> dict:
-        node = inputs.get("volume_in")
+    def execute(self, inputs):
+        node = inputs.get('volume_in')
         if node is None:
             raise ValueError("Gaussian Smooth: no input volume connected.")
 
-        sigma = self.get_property("sigma")
+        sigma  = self.get_property('sigma')
+        img    = sitkUtils.PullVolumeFromSlicer(node)
+        result = sitk.SmoothingRecursiveGaussian(img, sigma=sigma)
 
-        image = sitkUtils.PullVolumeFromSlicer(node)
-        result = sitk.SmoothingRecursiveGaussian(image, sigma=sigma)
+        out = self._get_or_create_output('volume_out',
+                                         node.GetName() + '_smooth')
+        sitkUtils.PushVolumeToSlicer(result, out)
+        return {'volume_out': out}
 
-        output_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
-        output_node.SetName(f"{node.GetName()}_smoothed")
-        sitkUtils.PushVolumeToSlicer(result, output_node)
-        return {"volume_out": output_node}
+    def route_to_viewer(self):
+        node = self._cache.get('volume_out')
+        if node:
+            from .io_nodes import _route_volume_to_slices
+            _route_volume_to_slices(node)
+
+
+class MedianFilterNode(SlicerBaseNode):
+    NODE_NAME    = "Median Filter"
+    CATEGORY     = "Filters"
+
+    INPUT_PORTS  = [("volume_in",  "Volume", VOLUME)]
+    OUTPUT_PORTS = [("volume_out", "Volume", VOLUME)]
+
+    PROPERTIES = [
+        {'name': 'radius', 'label': 'Radius (vox)', 'type': 'int',
+         'default': 1, 'min': 1, 'max': 10},
+    ]
+
+    def execute(self, inputs):
+        node = inputs.get('volume_in')
+        if node is None:
+            raise ValueError("Median Filter: no input volume connected.")
+        r      = self.get_property('radius')
+        img    = sitkUtils.PullVolumeFromSlicer(node)
+        result = sitk.Median(img, [r, r, r])
+        out = self._get_or_create_output('volume_out',
+                                         node.GetName() + '_median')
+        sitkUtils.PushVolumeToSlicer(result, out)
+        return {'volume_out': out}
+
+    def route_to_viewer(self):
+        node = self._cache.get('volume_out')
+        if node:
+            from .io_nodes import _route_volume_to_slices
+            _route_volume_to_slices(node)
+
+
+# ---------------------------------------------------------------------------
+# Shared MRML output-node helper  (injected into base so all filters share it)
+# ---------------------------------------------------------------------------
+
+def _get_or_create_output(self, port_name, name_hint):
+    """Return cached output node or create a new one."""
+    existing = self._cache.get(port_name)
+    if existing and slicer.mrmlScene.GetNodeByID(existing.GetID()):
+        return existing
+    new_node = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode')
+    new_node.SetName(name_hint)
+    new_node.CreateDefaultDisplayNodes()
+    return new_node
+
+
+# Monkey-patch onto SlicerBaseNode so every node can call self._get_or_create_output
+from .base_node import SlicerBaseNode as _Base
+_Base._get_or_create_output = _get_or_create_output
