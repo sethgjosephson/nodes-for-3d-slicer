@@ -22,6 +22,7 @@ set(MODULE_PYTHON_SCRIPTS
   Nodes/register_nodes.py
   Nodes/viz_nodes.py
   Nodes/layout_node.py
+  Nodes/process_nodes.py
   )
 
 set(MODULE_PYTHON_RESOURCES

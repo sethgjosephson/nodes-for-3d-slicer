@@ -1,7 +1,7 @@
 """Segmentation nodes."""
 
 import slicer
-from .base_node import SlicerBaseNode, VOLUME, SEGMENTATION
+from .base_node import SlicerBaseNode, LinkedModuleNode, VOLUME, SEGMENTATION
 
 
 class SegmentationNode(SlicerBaseNode):
@@ -86,3 +86,74 @@ class SegmentationNode(SlicerBaseNode):
                     cn.SetBackgroundVolumeID(ref_vol.GetID())
         seg.GetDisplayNode().SetVisibility(True)
         slicer.util.resetSliceViews()
+
+
+# ---------------------------------------------------------------------------
+# Segment Editor — linked to Slicer's "SegmentEditor" module
+# ---------------------------------------------------------------------------
+
+class SegmentEditorNode(LinkedModuleNode):
+    """
+    Interactive segmentation via Slicer's Segment Editor module.
+
+    Connect a Volume input (and optionally an existing Segmentation to
+    edit); double-click to open the Segment Editor with both pre-selected.
+    The same segmentation flows out, so downstream nodes can consume it.
+    """
+
+    NODE_NAME     = "Segment Editor"
+    CATEGORY      = "Segmentation"
+    LINKED_MODULE = "SegmentEditor"
+
+    INPUT_PORTS  = [
+        ("volume_in", "Volume",       VOLUME),
+        ("seg_in",    "Segmentation", SEGMENTATION),
+    ]
+    OUTPUT_PORTS = [("seg_out", "Segmentation", SEGMENTATION)]
+
+    INPUT_SETTERS = {
+        'volume_in': ('setSourceVolumeNode', 'setMasterVolumeNode'),
+        'seg_in':    ('setSegmentationNode',),
+    }
+
+    def execute(self, inputs):
+        # If no segmentation is fed in, create a fresh one bound to the
+        # volume so the user has something to edit immediately.
+        seg = inputs.get('seg_in') or self._cache.get('seg_out')
+        if seg is None or not slicer.mrmlScene.GetNodeByID(seg.GetID()):
+            vol = inputs.get('volume_in')
+            seg = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
+            if vol is not None:
+                seg.SetName(vol.GetName() + '_seg')
+                seg.SetReferenceImageGeometryParameterFromVolumeNode(vol)
+            seg.CreateDefaultDisplayNodes()
+        return {'seg_out': seg}
+
+    def route_to_viewer(self):
+        seg = self._cache.get('seg_out')
+        vol = self._cache.get('volume_in')
+        if seg is None:
+            return
+        if vol is not None:
+            from .io_nodes import _route_volume_to_slices
+            _route_volume_to_slices(vol)
+        try:
+            seg.GetDisplayNode().SetVisibility(True)
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Segmentations — linked to Slicer's "Segmentations" module
+# ---------------------------------------------------------------------------
+
+class SegmentationsNode(LinkedModuleNode):
+    """Edit segmentation properties via Slicer's Segmentations module."""
+
+    NODE_NAME     = "Segmentations"
+    CATEGORY      = "Segmentation"
+    LINKED_MODULE = "Segmentations"
+
+    INPUT_PORTS   = [("seg_in",  "Segmentation", SEGMENTATION)]
+    OUTPUT_PORTS  = [("seg_out", "Segmentation", SEGMENTATION)]
+    INPUT_SETTERS = {'seg_in': ('setSegmentationNode', 'setMRMLNode')}

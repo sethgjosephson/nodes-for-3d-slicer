@@ -1,7 +1,7 @@
-"""I/O nodes: load and save volumes from/to disk."""
+"""I/O nodes: load and save volumes from/to disk, and module-linked I/O wrappers."""
 
 import slicer
-from .base_node import SlicerBaseNode, VOLUME
+from .base_node import SlicerBaseNode, LinkedModuleNode, VOLUME, MARKUP
 
 
 def _snapshot_scene_node_ids():
@@ -168,10 +168,42 @@ def _hide_all_volume_renderings():
             dn.SetVisibility(False)
 
 
+def _scope_vr_to_volume(target_volume):
+    """
+    Make sure VR displays attached to OTHER volumes are hidden, while
+    leaving the VR for `target_volume` (if any exists) visible.  This
+    keeps the volume rendering for the volume we're currently viewing
+    on, and only hides VRs for unrelated samples.
+    """
+    if target_volume is None:
+        return
+    target_id = target_volume.GetID()
+    vr_logic  = slicer.modules.volumerendering.logic()
+
+    n = slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLScalarVolumeNode')
+    for i in range(n):
+        v = slicer.mrmlScene.GetNthNodeByClass(i, 'vtkMRMLScalarVolumeNode')
+        if v is None:
+            continue
+        try:
+            dn = vr_logic.GetFirstVolumeRenderingDisplayNode(v)
+        except Exception:
+            dn = None
+        if dn is None:
+            continue
+        # Visible iff it belongs to the volume we're currently routing.
+        # (We don't FORCE it visible — only ensure it's hidden when
+        # unrelated.  The user's explicit ON/OFF state for the matching
+        # volume's VR is preserved.)
+        if v.GetID() != target_id:
+            dn.SetVisibility(False)
+
+
 def _route_volume_to_slices(node):
-    """Show a volume in the conventional 3-slice + 3D layout, hiding any
-    other displays (e.g. volume renderings) so only this is visible."""
-    _hide_all_volume_renderings()
+    """Show a volume in the conventional 3-slice + 3D layout.  Hides
+    volume renderings for OTHER volumes so only displays related to
+    `node` (its own VR, if any) remain visible."""
+    _scope_vr_to_volume(node)
 
     lm = slicer.app.layoutManager()
     lm.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutConventionalView)
@@ -182,3 +214,41 @@ def _route_volume_to_slices(node):
         if cn:
             cn.SetBackgroundVolumeID(nid)
     slicer.util.resetSliceViews()
+
+
+# ---------------------------------------------------------------------------
+# Volumes — linked to Slicer's "Volumes" module (window/level, contrast, etc.)
+# ---------------------------------------------------------------------------
+
+class VolumesNode(LinkedModuleNode):
+    """Display-property tweaks for a volume — opens Slicer's Volumes module."""
+
+    NODE_NAME     = "Volumes"
+    CATEGORY      = "I/O"
+    LINKED_MODULE = "Volumes"
+
+    INPUT_PORTS   = [("volume_in",  "Volume", VOLUME)]
+    OUTPUT_PORTS  = [("volume_out", "Volume", VOLUME)]
+    INPUT_SETTERS = {'volume_in': ('setMRMLVolumeNode', 'setMRMLNode')}
+
+    def route_to_viewer(self):
+        node = self._cache.get('volume_in')
+        if node is not None:
+            _route_volume_to_slices(node)
+
+
+# ---------------------------------------------------------------------------
+# Markups — linked to Slicer's "Markups" module (fiducials, lines, ROIs, ...)
+# ---------------------------------------------------------------------------
+
+class MarkupsNode(LinkedModuleNode):
+    """Edit a markup node (fiducials, line, ROI, …) via the Markups module."""
+
+    NODE_NAME     = "Markups"
+    CATEGORY      = "I/O"
+    LINKED_MODULE = "Markups"
+
+    INPUT_PORTS   = [("markup_in",  "Markup", MARKUP)]
+    OUTPUT_PORTS  = [("markup_out", "Markup", MARKUP)]
+    INPUT_SETTERS = {'markup_in': ('setActiveMarkupsNode', 'setMRMLMarkupsNode',
+                                    'setMRMLNode')}
