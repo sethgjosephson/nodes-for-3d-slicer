@@ -4,8 +4,9 @@ and the Tab search popup.
 
 Keyboard shortcuts
 ──────────────────
-1 / 2        assign hovered node to viewer slot and activate it;
-             if no node is hovered, recall the slot's last assignment
+1 / 2        assign the currently-selected node to viewer slot and
+             activate it; if nothing is selected, recall the slot's
+             last assignment (toggle-style)
 Tab          open node-search popup at cursor
 Delete /
 Backspace    delete selected nodes and their edges
@@ -13,13 +14,29 @@ F            frame selected nodes in view (or all nodes if nothing selected)
 Escape       deselect all
 """
 
-from PySide2.QtWidgets import QGraphicsView
-from PySide2.QtCore    import Qt, QPointF
-from PySide2.QtGui     import QPainter, QTransform
+from ._qt import QGraphicsView, Qt, QPointF, QPoint, QPainter, QTransform
 
 from .scene        import NodeEditorScene
 from .node_item    import NodeItem
 from .search_popup import SearchPopup
+
+
+# Module-level clipboard so cut/copy survives across canvas instances
+_CLIPBOARD = None
+
+
+def _event_modifiers(event):
+    """PythonQt-safe accessor for QKeyEvent modifiers (property OR method)."""
+    m = event.modifiers
+    if callable(m):
+        try:
+            m = m()
+        except Exception:
+            m = 0
+    try:
+        return int(m)
+    except Exception:
+        return 0
 
 
 class NodeEditorCanvas(QGraphicsView):
@@ -64,6 +81,20 @@ class NodeEditorCanvas(QGraphicsView):
         # Mouse tracking so we always know cursor position for Tab
         self.setMouseTracking(True)
         self._last_mouse_scene = QPointF(0, 0)
+        self._pan_active       = False
+        self._pan_origin       = QPoint(0, 0)
+
+        # Capture Tab and other keys (default focus policy doesn't accept Tab)
+        self.setFocusPolicy(Qt.StrongFocus)
+
+    def focusNextPrevChild(self, next):
+        # Prevent Qt from stealing Tab for focus traversal — we want it
+        return False
+
+    def enterEvent(self, event):
+        # Auto-focus on hover so keyboard shortcuts work without a click first
+        self.setFocus(Qt.MouseFocusReason)
+        QGraphicsView.enterEvent(self, event)
 
     # ------------------------------------------------------------------
     # Public helpers
@@ -83,8 +114,7 @@ class NodeEditorCanvas(QGraphicsView):
                            Qt.KeepAspectRatio)
 
     def frame_selected(self):
-        selected = [i for i in self._scene.selectedItems()
-                    if isinstance(i, NodeItem)]
+        selected = self._scene.selected_node_items()
         if selected:
             rect = selected[0].sceneBoundingRect()
             for ni in selected[1:]:
@@ -100,38 +130,39 @@ class NodeEditorCanvas(QGraphicsView):
 
     def mouseMoveEvent(self, event):
         self._last_mouse_scene = self.mapToScene(event.pos())
-        super().mouseMoveEvent(event)
+        if self._pan_active:
+            pos = event.pos()
+            dx  = pos.x() - self._pan_origin.x()
+            dy  = pos.y() - self._pan_origin.y()
+            self._pan_origin = pos
+            self.horizontalScrollBar().setValue(
+                self.horizontalScrollBar().value - dx)
+            self.verticalScrollBar().setValue(
+                self.verticalScrollBar().value - dy)
+            event.accept()
+            return
+        QGraphicsView.mouseMoveEvent(self, event)
 
     # ------------------------------------------------------------------
-    # Middle-mouse pan
+    # Middle-mouse pan (scroll-bar based — avoids QMouseEvent construction)
     # ------------------------------------------------------------------
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MiddleButton:
-            self.setDragMode(QGraphicsView.ScrollHandDrag)
-            # Simulate left-button press for scroll-hand drag
-            from PySide2.QtCore import QEvent
-            from PySide2.QtGui  import QMouseEvent
-            fake = QMouseEvent(QEvent.MouseButtonPress,
-                               event.localPos(), event.screenPos(),
-                               Qt.LeftButton, Qt.LeftButton,
-                               event.modifiers())
-            super().mousePressEvent(fake)
+            self._pan_active = True
+            self._pan_origin = event.pos()
+            self.setCursor(Qt.ClosedHandCursor)
+            event.accept()
             return
-        super().mousePressEvent(event)
+        QGraphicsView.mousePressEvent(self, event)
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MiddleButton:
-            self.setDragMode(QGraphicsView.RubberBandDrag)
-            from PySide2.QtCore import QEvent
-            from PySide2.QtGui  import QMouseEvent
-            fake = QMouseEvent(QEvent.MouseButtonRelease,
-                               event.localPos(), event.screenPos(),
-                               Qt.LeftButton, Qt.LeftButton,
-                               event.modifiers())
-            super().mouseReleaseEvent(fake)
+        if event.button() == Qt.MiddleButton and self._pan_active:
+            self._pan_active = False
+            self.setCursor(Qt.ArrowCursor)
+            event.accept()
             return
-        super().mouseReleaseEvent(event)
+        QGraphicsView.mouseReleaseEvent(self, event)
 
     # ------------------------------------------------------------------
     # Zoom
@@ -146,19 +177,42 @@ class NodeEditorCanvas(QGraphicsView):
     # ------------------------------------------------------------------
 
     def keyPressEvent(self, event):
-        key = event.key()
+        key  = event.key()
+        mods = _event_modifiers(event)
+        ctrl = bool(mods & int(Qt.ControlModifier))
 
-        # --- Viewer slot routing ---
-        if key in (Qt.Key_1, Qt.Key_2):
-            slot      = 1 if key == Qt.Key_1 else 2
-            hovered   = self._hovered_node()
-            if hovered is not None:
-                # Clear previous slot badge for this slot
+        # --- Edit shortcuts ---
+        if ctrl and key == Qt.Key_Z:
+            self._scene.undo()
+            return
+        if ctrl and key == Qt.Key_Y:
+            self._scene.redo()
+            return
+        if ctrl and key == Qt.Key_C:
+            self._copy_to_clipboard()
+            return
+        if ctrl and key == Qt.Key_X:
+            self._cut_to_clipboard()
+            return
+        if ctrl and key == Qt.Key_V:
+            self._paste_from_clipboard()
+            return
+
+        # --- Viewer slot routing (1..9 → slots 1..9, 0 → slot 10) ---
+        slot_for_key = {
+            Qt.Key_1: 1, Qt.Key_2: 2, Qt.Key_3: 3, Qt.Key_4: 4,
+            Qt.Key_5: 5, Qt.Key_6: 6, Qt.Key_7: 7, Qt.Key_8: 8,
+            Qt.Key_9: 9, Qt.Key_0: 10,
+        }
+        if key in slot_for_key:
+            slot     = slot_for_key[key]
+            selected = self._selected_node()
+            if selected is not None:
                 prev = self._router.get_slot_node(slot)
-                if prev is not None:
+                if prev is not None and prev is not selected:
                     prev.set_viewer_slot(None)
-                hovered.set_viewer_slot(slot)
-                self._router.assign_and_activate(hovered, slot)
+                selected.set_viewer_slot(slot)
+                self._router.assign_and_activate(selected, slot)
             else:
                 self._router.activate(slot)
             return
@@ -183,7 +237,7 @@ class NodeEditorCanvas(QGraphicsView):
             self._scene.clearSelection()
             return
 
-        super().keyPressEvent(event)
+        QGraphicsView.keyPressEvent(self, event)
 
     # ------------------------------------------------------------------
     # Tab search popup
@@ -195,42 +249,125 @@ class NodeEditorCanvas(QGraphicsView):
             return
 
         scene_pos = self._last_mouse_scene
-        self._popup = SearchPopup(self, scene_pos, self._registry)
-        self._popup.node_chosen.connect(self._on_node_chosen)
+        self._popup = SearchPopup(self, scene_pos, self._registry,
+                                  on_choose=self._on_node_chosen)
         self._popup.show()
 
     def _on_node_chosen(self, node_class):
         """Place a new node at the position where Tab was pressed."""
-        node_data = node_class()
-        # Offset slightly so the node centre lands near the cursor
         from .constants import NODE_WIDTH, NODE_TITLE_HEIGHT, NODE_BODY_HEIGHT
-        pos = self._popup._scene_pos - QPointF(
-            NODE_WIDTH / 2,
-            (NODE_TITLE_HEIGHT + NODE_BODY_HEIGHT) / 2)
-        self._scene.add_node(node_data, pos)
+        try:
+            node_data = node_class()
+        except Exception as exc:
+            import slicer
+            slicer.util.errorDisplay(
+                f"Could not instantiate '{node_class.__name__}':\n{exc}")
+            return
+
+        # Capture the previously-selected node BEFORE we change selection
+        prev_selected = self._selected_node()
+
+        sp  = self._popup._scene_pos if self._popup else QPointF(0, 0)
+        pos = QPointF(sp.x() - NODE_WIDTH / 2,
+                      sp.y() - (NODE_TITLE_HEIGHT + NODE_BODY_HEIGHT) / 2)
+        # Snapshot for undo before mutating the graph
+        self._scene.capture_undo()
+        try:
+            new_item = self._scene.add_node(node_data, pos)
+        except Exception as exc:
+            import slicer
+            import traceback
+            slicer.util.errorDisplay(
+                f"Could not add node to scene:\n{exc}\n\n"
+                f"{traceback.format_exc()}")
+            return
+
+        # If a node was selected, auto-wire the new one after it
+        if prev_selected is not None:
+            try:
+                self._scene.try_auto_connect(prev_selected, new_item)
+            except Exception:
+                import traceback; traceback.print_exc()
+
+        # Switch selection to the new node
+        self._scene.clearSelection()
+        new_item.setSelected(True)
+        self._scene.notify_node_selected(new_item)
 
     # ------------------------------------------------------------------
     # Delete
     # ------------------------------------------------------------------
 
     def _delete_selected(self):
-        for item in list(self._scene.selectedItems()):
-            if isinstance(item, NodeItem):
-                self._router.clear_node(item)
-                self._scene.remove_node(item)
-            else:
-                # Edge selected directly
-                from .edge_item import EdgeItem
-                if isinstance(item, EdgeItem):
-                    self._scene.remove_edge(item)
+        selected = list(self._scene.selected_node_items())
+        if not selected:
+            return
+        self._scene.capture_undo()
+        for ni in selected:
+            self._router.clear_node(ni)
+            self._scene.remove_node(ni)
 
     # ------------------------------------------------------------------
-    # Hover detection for slot hotkeys
+    # Clipboard (copy / cut / paste)
     # ------------------------------------------------------------------
 
-    def _hovered_node(self):
-        """Return the NodeItem under the mouse cursor, or None."""
-        for item in self._scene.items(self._last_mouse_scene):
-            if isinstance(item, NodeItem):
-                return item
+    def _copy_to_clipboard(self):
+        global _CLIPBOARD
+        clip = self._scene.copy_selection()
+        if clip:
+            _CLIPBOARD = clip
+
+    def _cut_to_clipboard(self):
+        global _CLIPBOARD
+        clip = self._scene.copy_selection()
+        if not clip:
+            return
+        _CLIPBOARD = clip
+        self._scene.capture_undo()
+        for ni in list(self._scene.selected_node_items()):
+            self._router.clear_node(ni)
+            self._scene.remove_node(ni)
+
+    def _paste_from_clipboard(self):
+        if not _CLIPBOARD:
+            return
+        # Capture currently-selected node BEFORE paste flips selection
+        prev_selected = self._selected_node()
+
+        self._scene.capture_undo()
+        new_items = self._scene.paste_clipboard(_CLIPBOARD,
+                                                self._last_mouse_scene)
+
+        # Auto-connect: feed prev_selected's output into the pasted graph's entry
+        if prev_selected is not None and new_items:
+            entry = self._find_paste_entry(new_items)
+            if entry is not None:
+                try:
+                    self._scene.try_auto_connect(prev_selected, entry)
+                except Exception:
+                    import traceback; traceback.print_exc()
+
+        # Notify props panel about the first pasted node so the user has context
+        if new_items:
+            self._scene.notify_node_selected(new_items[0])
+
+    def _find_paste_entry(self, new_items):
+        """Pick the first pasted node that has an unfilled input port —
+        the natural 'entry' for piping the previously-selected node into."""
+        for ni in new_items:
+            if not ni.node_data.INPUT_PORTS:
+                continue
+            for port_name, _label, _dtype in ni.node_data.INPUT_PORTS:
+                in_port = ni.get_port(port_name, is_input=True)
+                if in_port is not None and self._scene.get_incoming_edge(in_port) is None:
+                    return ni
         return None
+
+    # ------------------------------------------------------------------
+    # Selection helpers
+    # ------------------------------------------------------------------
+
+    def _selected_node(self):
+        """Return the (single) selected NodeItem, or None."""
+        sel = self._scene.selected_node_items()
+        return sel[0] if sel else None

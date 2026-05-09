@@ -36,13 +36,19 @@ class LayoutNode(SlicerBaseNode):
                    'Side By Side', '3D Only']},
     ]
 
-    _LAYOUT_MAP = {
-        'Four Up':          slicer.vtkMRMLLayoutNode.SlicerLayoutFourUpView,
-        'Conventional':     slicer.vtkMRMLLayoutNode.SlicerLayoutConventionalView,
-        'Three Over Three': slicer.vtkMRMLLayoutNode.SlicerLayoutThreeOverThreeView,
-        'Side By Side':     slicer.vtkMRMLLayoutNode.SlicerLayoutSideBySideView,
-        '3D Only':          slicer.vtkMRMLLayoutNode.SlicerLayoutOneUp3DView,
-    }
+    _LAYOUT_MAP = None  # populated lazily at first use
+
+    @classmethod
+    def _get_layout_map(cls):
+        if cls._LAYOUT_MAP is None:
+            cls._LAYOUT_MAP = {
+                'Four Up':          slicer.vtkMRMLLayoutNode.SlicerLayoutFourUpView,
+                'Conventional':     slicer.vtkMRMLLayoutNode.SlicerLayoutConventionalView,
+                'Three Over Three': slicer.vtkMRMLLayoutNode.SlicerLayoutThreeOverThreeView,
+                'Side By Side':     slicer.vtkMRMLLayoutNode.SlicerLayoutSideBySideView,
+                '3D Only':          slicer.vtkMRMLLayoutNode.SlicerLayoutOneUp3DView,
+            }
+        return cls._LAYOUT_MAP
 
     def execute(self, inputs):
         # Store inputs so route_to_viewer can use them even if called later
@@ -54,7 +60,7 @@ class LayoutNode(SlicerBaseNode):
 
     def route_to_viewer(self):
         layout_name = self.get_property('layout')
-        layout_id   = self._LAYOUT_MAP.get(
+        layout_id   = self._get_layout_map().get(
             layout_name,
             slicer.vtkMRMLLayoutNode.SlicerLayoutFourUpView)
 

@@ -1,4 +1,4 @@
-from .io_nodes      import LoadVolumeNode, SaveVolumeNode
+from .io_nodes      import LoadVolumeNode, SaveVolumeNode, SampleDataNode
 from .filter_nodes  import ThresholdNode, GaussianSmoothNode, MedianFilterNode
 from .segment_nodes import SegmentationNode
 from .register_nodes import RegistrationNode, ApplyTransformNode
@@ -7,6 +7,7 @@ from .layout_node   import LayoutNode
 
 # Master registry — every class here appears in the Tab search popup
 ALL_NODE_CLASSES = [
+    SampleDataNode,
     LoadVolumeNode,
     SaveVolumeNode,
     ThresholdNode,

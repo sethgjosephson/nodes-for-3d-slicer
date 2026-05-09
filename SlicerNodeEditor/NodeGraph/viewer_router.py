@@ -23,7 +23,9 @@ class ViewerSlotManager:
     """
 
     def __init__(self, executor=None):
-        self._slots    = {1: None, 2: None}   # slot → NodeItem
+        # Slots 1..10 (0 key maps to slot 10).  Keys are ints; values are
+        # the NodeItem currently assigned to that slot, or None.
+        self._slots    = {i: None for i in range(1, 11)}
         self._active   = 1
         self._executor = executor              # set after creation
 
@@ -65,18 +67,28 @@ class ViewerSlotManager:
 
     def _display(self, node_item):
         """Execute up to this node (lazy) then route Slicer's viewer."""
+        nd = node_item.node_data
+        print(f"[NodeEditor] router._display node='{nd.NODE_NAME}' "
+              f"dirty={nd.is_dirty}")
+
         if self._executor is not None:
             try:
                 self._executor.execute_up_to(node_item)
+                print(f"[NodeEditor] execute_up_to done; cache keys = "
+                      f"{list(nd._cache.keys())}")
             except Exception as exc:
-                import slicer
+                import slicer, traceback
+                traceback.print_exc()
                 slicer.util.errorDisplay(
                     f"Execution failed before routing viewer:\n{exc}")
                 return
 
         try:
-            node_item.node_data.route_to_viewer()
+            print(f"[NodeEditor] calling route_to_viewer on '{nd.NODE_NAME}'")
+            nd.route_to_viewer()
+            print(f"[NodeEditor] route_to_viewer returned")
         except Exception as exc:
-            import slicer
+            import slicer, traceback
+            traceback.print_exc()
             slicer.util.errorDisplay(
-                f"Viewer routing failed for '{node_item.node_data.NODE_NAME}':\n{exc}")
+                f"Viewer routing failed for '{nd.NODE_NAME}':\n{exc}")

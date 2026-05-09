@@ -14,10 +14,10 @@ Layout (vertical pipeline, top-to-bottom data flow):
 Selecting a node emits node_selected(self) on the scene.
 """
 
-from PySide2.QtWidgets import QGraphicsObject
-from PySide2.QtCore    import QRectF, QPointF, Qt, Signal
-from PySide2.QtGui     import (QPainter, QColor, QPen, QBrush,
-                                QPainterPath, QFont, QFontMetrics)
+import time
+
+from ._qt import (QGraphicsObject, QRectF, QPointF, Qt, Signal,
+                   QPainter, QColor, QPen, QBrush, QPainterPath, QFont, QFontMetrics)
 
 from .port_item import PortItem
 from .constants import (
@@ -71,6 +71,9 @@ class NodeItem(QGraphicsObject):
         if scene_pos:
             self.setPos(scene_pos)
 
+        # Shake-to-disconnect tracking
+        self._motion_history = []   # list of (time, x, y)
+
     # ------------------------------------------------------------------
     # QGraphicsItem
     # ------------------------------------------------------------------
@@ -118,14 +121,14 @@ class NodeItem(QGraphicsObject):
         border_color = NODE_BORDER_SELECT if selected else NODE_BORDER_NORMAL
         painter.setPen(QPen(QColor(*border_color),
                             2.0 if selected else 1.0))
-        painter.setBrush(Qt.NoBrush)
+        painter.setBrush(QBrush())
         painter.drawRoundedRect(body_rect, NODE_CORNER_RADIUS, NODE_CORNER_RADIUS)
 
         # --- Dirty indicator ---
         if self.node_data.is_dirty:
             dirty_r = 5
             painter.setBrush(QBrush(QColor(*NODE_DIRTY_COLOR)))
-            painter.setPen(Qt.NoPen)
+            painter.setPen(QPen(Qt.NoPen))
             painter.drawEllipse(
                 QPointF(NODE_WIDTH - dirty_r - 6,
                         NODE_TITLE_HEIGHT + self._body_h / 2),
@@ -139,7 +142,7 @@ class NodeItem(QGraphicsObject):
             cx = badge_r + 6
             cy = NODE_TITLE_HEIGHT + self._body_h / 2
             painter.setBrush(QBrush(badge_color))
-            painter.setPen(Qt.NoPen)
+            painter.setPen(QPen(Qt.NoPen))
             painter.drawEllipse(QPointF(cx, cy), badge_r, badge_r)
             font2 = QFont("Arial", 7, QFont.Bold)
             painter.setFont(font2)
@@ -153,10 +156,24 @@ class NodeItem(QGraphicsObject):
     # ------------------------------------------------------------------
 
     def mousePressEvent(self, event):
-        super().mousePressEvent(event)
-        # Emit after Qt has updated isSelected()
-        if event.button() == Qt.LeftButton:
-            self.selected_changed.emit(self)
+        # Single click only selects / starts drag — the left panel does
+        # NOT update.  That happens on double-click.
+        QGraphicsObject.mousePressEvent(self, event)
+
+    def mouseDoubleClickEvent(self, event):
+        QGraphicsObject.mouseDoubleClickEvent(self, event)
+        if event.button() == Qt.LeftButton and self.scene() is not None:
+            scene = self.scene()
+            if hasattr(scene, 'notify_node_selected'):
+                scene.notify_node_selected(self)
+
+    def mouseReleaseEvent(self, event):
+        QGraphicsObject.mouseReleaseEvent(self, event)
+        # After drag ends, give the scene a chance to auto-insert this
+        # node into a pipe if it was dropped on top of one.
+        scene = self.scene()
+        if scene is not None and hasattr(scene, 'try_insert_into_pipe'):
+            scene.try_insert_into_pipe(self)
 
     # ------------------------------------------------------------------
     # Notify scene when node moves (edges need to repaint)
@@ -164,8 +181,42 @@ class NodeItem(QGraphicsObject):
 
     def itemChange(self, change, value):
         if change == self.ItemPositionHasChanged and self.scene():
-            self.scene().on_node_moved(self)
-        return super().itemChange(change, value)
+            scene = self.scene()
+            scene.on_node_moved(self)
+            self._track_shake_motion(value)
+            if hasattr(scene, 'update_drop_highlight'):
+                scene.update_drop_highlight(self)
+        try:
+            return QGraphicsObject.itemChange(self, change, value)
+        except Exception:
+            return value
+
+    def _track_shake_motion(self, pos):
+        """Detect a 'shake' gesture and disconnect all edges if detected."""
+        now    = time.time()
+        cutoff = now - 0.4
+        self._motion_history.append((now, pos.x(), pos.y()))
+        while self._motion_history and self._motion_history[0][0] < cutoff:
+            self._motion_history.pop(0)
+        if len(self._motion_history) < 6:
+            return
+
+        # Total path length vs net displacement over last 0.4s
+        path = 0.0
+        for i in range(1, len(self._motion_history)):
+            _, x1, y1 = self._motion_history[i - 1]
+            _, x2, y2 = self._motion_history[i]
+            path += ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+        _, x0, y0 = self._motion_history[0]
+        _, xn, yn = self._motion_history[-1]
+        net = ((xn - x0) ** 2 + (yn - y0) ** 2) ** 0.5
+
+        # Shake = lots of motion that didn't actually go anywhere
+        if path > 200 and (net < 1.0 or path / net > 5.0):
+            scene = self.scene()
+            if scene is not None and hasattr(scene, 'disconnect_all_edges'):
+                scene.disconnect_all_edges(self)
+            self._motion_history.clear()
 
     # ------------------------------------------------------------------
     # Public API

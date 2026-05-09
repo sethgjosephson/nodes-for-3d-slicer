@@ -35,10 +35,13 @@ class SlicerNodeEditor(ScriptedLoadableModule):
         parent.contributors = ["Seth Rivers"]
         parent.helpText = (
             "A Nuke-style node graph interface for 3D Slicer.\n\n"
-            "• Tab  — search and place nodes\n"
-            "• 1/2  — route hovered node to viewer slot 1 or 2\n"
-            "• F    — frame nodes in view\n"
-            "• Del  — delete selected nodes\n"
+            "• Tab     — search and place nodes\n"
+            "• 1..9, 0 — assign selected node to viewer slot 1..10\n"
+            "• Double-click a node — load its settings in the left panel\n"
+            "• Ctrl+C/X/V — copy / cut / paste\n"
+            "• Ctrl+Z/Y   — undo / redo\n"
+            "• F       — frame nodes in view\n"
+            "• Del     — delete selected nodes\n"
             "• Scroll — zoom  |  Middle-drag — pan"
         )
         parent.acknowledgementText = ""
@@ -54,6 +57,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         ScriptedLoadableModuleWidget.__init__(self, parent)
         VTKObservationMixin.__init__(self)
         self._canvas         = None
+        self._dock           = None
         self._props_widget   = None
         self._selected_node  = None
 
@@ -64,7 +68,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def setup(self):
         super().setup()
 
-        # --- Toolbar (Slicer-native Qt widgets) ----------------------
+        # --- Toolbar (Slicer-native Qt widgets, in module panel) -----
         toolbar_widget = qt.QWidget()
         toolbar_layout = qt.QHBoxLayout(toolbar_widget)
         toolbar_layout.setContentsMargins(0, 2, 0, 2)
@@ -82,24 +86,36 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.layout.addWidget(toolbar_widget)
 
-        # --- Canvas (PySide2) ----------------------------------------
-        # Import here so Slicer doesn't try to import PySide2 at module load
-        from NodeGraph           import NodeEditorCanvas, Executor, ViewerSlotManager
-        from Nodes               import ALL_NODE_CLASSES
+        # --- Canvas — lives in a bottom dock widget, NOT module panel
+        from NodeGraph import NodeEditorCanvas, Executor, ViewerSlotManager
+        from Nodes     import ALL_NODE_CLASSES
 
-        self._router   = ViewerSlotManager()
-        # Canvas is created first; executor needs the scene from the canvas
-        self._canvas   = NodeEditorCanvas(ALL_NODE_CLASSES,
-                                          self._router,
-                                          None)      # executor set below
-        executor       = Executor(self._canvas.node_scene)
+        self._router  = ViewerSlotManager()
+        self._canvas  = NodeEditorCanvas(ALL_NODE_CLASSES, self._router, None)
+        executor      = Executor(self._canvas.node_scene)
         self._router.set_executor(executor)
-        self._canvas._executor = executor            # back-reference
+        self._canvas._executor = executor
+        # Tell the scene about the router so undo/redo can rebind viewer slots
+        self._canvas.node_scene.set_router(self._router)
 
-        # PySide2 widget embedded into PythonQt layout — works in Slicer
-        self.layout.addWidget(self._canvas)
+        main_window = slicer.util.mainWindow()
+        self._dock  = qt.QDockWidget("Node Editor", main_window)
+        self._dock.setObjectName("NodeEditorDock")
+        self._dock.setFeatures(
+            qt.QDockWidget.DockWidgetMovable
+            | qt.QDockWidget.DockWidgetFloatable
+            | qt.QDockWidget.DockWidgetClosable)
+        self._dock.setAllowedAreas(
+            qt.Qt.BottomDockWidgetArea
+            | qt.Qt.TopDockWidgetArea
+            | qt.Qt.LeftDockWidgetArea
+            | qt.Qt.RightDockWidgetArea)
+        self._dock.setWidget(self._canvas)
+        self._dock.setMinimumHeight(360)
+        main_window.addDockWidget(qt.Qt.BottomDockWidgetArea, self._dock)
+        self._dock.show()
 
-        # --- Properties panel (collapsible, Slicer-native) -----------
+        # --- Properties panel (collapsible, in module panel) ---------
         self._props_collapsible = ctk.ctkCollapsibleButton()
         self._props_collapsible.text      = "Node Properties"
         self._props_collapsible.collapsed = True
@@ -108,8 +124,8 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._props_inner_layout = qt.QFormLayout(self._props_collapsible)
         self._props_inner_layout.setContentsMargins(8, 4, 8, 4)
 
-        # Wire canvas → properties panel
-        self._canvas.node_scene.node_selected.connect(self._on_node_selected)
+        # Wire canvas → properties panel (direct callback, more reliable than Signal)
+        self._canvas.node_scene.set_selection_listener(self._on_node_selected)
 
         # Toolbar actions
         run_btn.connect("clicked()",   self._on_execute_all)
@@ -123,7 +139,53 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def _on_node_selected(self, node_item):
         self._selected_node = node_item
+
+        # If the node is linked to a Slicer module, swap the left panel
+        # to that module's own widget instead of building our inline form.
+        linked = (getattr(node_item.node_data, 'LINKED_MODULE', None)
+                  if node_item is not None else None)
+        if linked:
+            self._show_linked_module(node_item, linked)
+            return
+
+        # Otherwise: ensure we're on the Node Editor module and rebuild
+        # the inline properties panel.
+        self._ensure_node_editor_active()
         self._rebuild_props_panel(node_item)
+
+    def _show_linked_module(self, node_item, module_name):
+        """Switch Slicer to module_name and let the node configure it."""
+        try:
+            slicer.util.selectModule(module_name)
+        except Exception as exc:
+            print(f"[NodeEditor] selectModule('{module_name}') failed: {exc}")
+            return
+
+        try:
+            mod = getattr(slicer.modules, module_name.lower(), None)
+            if mod is None:
+                return
+            mw = mod.widgetRepresentation()
+            if mw is None:
+                return
+            node_item.node_data.configure_module_widget(mw, node_item)
+        except Exception as exc:
+            import traceback; traceback.print_exc()
+            print(f"[NodeEditor] configure_module_widget failed: {exc}")
+
+    def _ensure_node_editor_active(self):
+        """Switch back to this module if we're elsewhere (e.g. after VR)."""
+        try:
+            sel = slicer.app.moduleManager().moduleSelector()
+            current = getattr(sel, 'selectedModule', None) or \
+                      (sel.selectedModule() if callable(getattr(sel, 'selectedModule', None)) else '')
+            if current != 'SlicerNodeEditor':
+                slicer.util.selectModule('SlicerNodeEditor')
+        except Exception:
+            try:
+                slicer.util.selectModule('SlicerNodeEditor')
+            except Exception:
+                pass
 
     def _rebuild_props_panel(self, node_item):
         """Populate the properties panel for the selected node."""
@@ -139,6 +201,17 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self._props_collapsible.text      = f"Properties — {node_item.node_data.NODE_NAME}"
         self._props_collapsible.collapsed = False
+
+        # Give the node a chance to provide a fully-custom widget
+        try:
+            custom = node_item.node_data.build_properties_widget(
+                self._props_collapsible, node_item)
+        except Exception as exc:
+            import traceback; traceback.print_exc()
+            custom = None
+        if custom is not None:
+            self._props_inner_layout.addRow(custom)
+            return
 
         for prop in node_item.node_data.PROPERTIES:
             label = qt.QLabel(prop['label'] + ":")
@@ -184,7 +257,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 hl.addWidget(w)
                 browse = qt.QPushButton("…")
                 browse.setMaximumWidth(28)
-                def _browse(checked, line_edit=w):
+                def _browse(line_edit=w):
                     path = qt.QFileDialog.getOpenFileName(None, "Select file")
                     if path:
                         line_edit.setText(path)
@@ -251,7 +324,25 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     # ------------------------------------------------------------------
 
+    def enter(self):
+        # Bring the canvas dock to the front when the user is on this module,
+        # but never hide it — the canvas is meant to be persistent across modules.
+        if self._dock is not None:
+            self._dock.show()
+            self._dock.raise_()
+
+    def exit(self):
+        # Intentionally do NOT hide the dock — keep it visible across modules.
+        pass
+
     def cleanup(self):
+        if self._dock is not None:
+            try:
+                slicer.util.mainWindow().removeDockWidget(self._dock)
+                self._dock.deleteLater()
+            except Exception:
+                pass
+            self._dock = None
         self.removeObservers()
 
 
@@ -288,7 +379,7 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
         self.delayDisplay("Testing node placement")
         from NodeGraph import NodeEditorScene
         from Nodes     import LoadVolumeNode
-        from PySide2.QtCore import QPointF
+        from NodeGraph._qt import QPointF
         scene = NodeEditorScene()
         ni = scene.add_node(LoadVolumeNode(), QPointF(0, 0))
         self.assertEqual(len(scene.all_node_items()), 1)
@@ -300,7 +391,7 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
         self.delayDisplay("Testing edge connection")
         from NodeGraph import NodeEditorScene
         from Nodes     import LoadVolumeNode, ThresholdNode
-        from PySide2.QtCore import QPointF
+        from NodeGraph._qt import QPointF
         scene = NodeEditorScene()
         src = scene.add_node(LoadVolumeNode(),  QPointF(0,   0))
         dst = scene.add_node(ThresholdNode(),   QPointF(0, 200))

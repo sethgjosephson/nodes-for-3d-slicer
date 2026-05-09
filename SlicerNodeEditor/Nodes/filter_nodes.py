@@ -113,21 +113,3 @@ class MedianFilterNode(SlicerBaseNode):
             _route_volume_to_slices(node)
 
 
-# ---------------------------------------------------------------------------
-# Shared MRML output-node helper  (injected into base so all filters share it)
-# ---------------------------------------------------------------------------
-
-def _get_or_create_output(self, port_name, name_hint):
-    """Return cached output node or create a new one."""
-    existing = self._cache.get(port_name)
-    if existing and slicer.mrmlScene.GetNodeByID(existing.GetID()):
-        return existing
-    new_node = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode')
-    new_node.SetName(name_hint)
-    new_node.CreateDefaultDisplayNodes()
-    return new_node
-
-
-# Monkey-patch onto SlicerBaseNode so every node can call self._get_or_create_output
-from .base_node import SlicerBaseNode as _Base
-_Base._get_or_create_output = _get_or_create_output
