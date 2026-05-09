@@ -1,7 +1,7 @@
 """Registration nodes."""
 
 import slicer
-from .base_node import SlicerBaseNode, VOLUME, TRANSFORM
+from .base_node import SlicerBaseNode, LinkedModuleNode, VOLUME, TRANSFORM
 
 
 class RegistrationNode(SlicerBaseNode):
@@ -107,3 +107,19 @@ class ApplyTransformNode(SlicerBaseNode):
         if node:
             from .io_nodes import _route_volume_to_slices
             _route_volume_to_slices(node)
+
+
+# ---------------------------------------------------------------------------
+# Transforms — linked to Slicer's "Transforms" module
+# ---------------------------------------------------------------------------
+
+class TransformsNode(LinkedModuleNode):
+    """View / edit a transform's matrix via Slicer's Transforms module."""
+
+    NODE_NAME     = "Transforms"
+    CATEGORY      = "Registration"
+    LINKED_MODULE = "Transforms"
+
+    INPUT_PORTS   = [("transform_in",  "Transform", TRANSFORM)]
+    OUTPUT_PORTS  = [("transform_out", "Transform", TRANSFORM)]
+    INPUT_SETTERS = {'transform_in': ('setMRMLTransformNode', 'setMRMLNode')}

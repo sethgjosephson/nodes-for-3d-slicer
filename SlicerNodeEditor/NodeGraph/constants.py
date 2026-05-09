@@ -62,6 +62,7 @@ PORT_COLORS = {
     "segmentation": (170,  90, 210),
     "transform":    (210, 185,  70),
     "model":        ( 90, 200,  90),
+    "markup":       (240, 160,  60),
     "any":          (160, 160, 160),
 }
 

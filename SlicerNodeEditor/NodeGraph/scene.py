@@ -266,26 +266,21 @@ class NodeEditorScene(QGraphicsScene):
     # QoL helpers: shake-to-disconnect, auto-connect, drop-on-pipe
     # ------------------------------------------------------------------
 
-    def disconnect_all_edges(self, node_item):
+    def build_splice_out_plan(self, node_item):
         """
-        Remove every edge connected to this node.  If the node sits in
-        the middle of a pipe (has both incoming AND outgoing edges with
-        compatible types), splice it OUT — directly connect upstream
-        to downstream so the rest of the pipeline stays intact.
+        Compute pairs of (upstream_output_port, downstream_input_port)
+        that should be connected after `node_item` is removed, so that
+        a node in the middle of a pipe leaves the rest of the pipeline
+        intact.  Pairs each incoming edge with a type-compatible outgoing
+        edge.  Doesn't modify the graph — caller decides what to do.
         """
-        if not self.edges_of(node_item):
-            return
-        self.capture_undo()
-
         incoming = [e for e in self._edges
                     if e.target_port and e.target_port.node_item is node_item]
         outgoing = [e for e in self._edges
                     if e.source_port and e.source_port.node_item is node_item]
 
-        # Build splice plan greedily: pair each incoming with a compatible
-        # outgoing, recording (upstream_output_port, downstream_input_port).
-        splice_plan = []
-        used_in, used_out = set(), set()
+        plan = []
+        used_out = set()
         for in_edge in incoming:
             for out_edge in outgoing:
                 if id(out_edge) in used_out:
@@ -297,17 +292,30 @@ class NodeEditorScene(QGraphicsScene):
                 if (up.data_type == down.data_type
                         or up.data_type == 'any'
                         or down.data_type == 'any'):
-                    splice_plan.append((up, down))
-                    used_in.add(id(in_edge))
+                    plan.append((up, down))
                     used_out.add(id(out_edge))
                     break
+        return plan
+
+    def disconnect_all_edges(self, node_item):
+        """
+        Remove every edge connected to this node.  If the node sits in
+        the middle of a pipe (has both incoming AND outgoing edges with
+        compatible types), splice it OUT — directly connect upstream
+        to downstream so the rest of the pipeline stays intact.
+        """
+        if not self.edges_of(node_item):
+            return
+        self.capture_undo()
+
+        plan = self.build_splice_out_plan(node_item)
 
         # Remove every edge of this node
         for edge in list(self.edges_of(node_item)):
             self.remove_edge(edge)
 
         # Reconnect the spliced pairs
-        for up, down in splice_plan:
+        for up, down in plan:
             self.connect_ports(up, down)
 
     def _find_compatible_pair(self, src_outputs, dst_inputs):

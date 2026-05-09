@@ -14,6 +14,7 @@ LABELMAP      = "labelmap"
 SEGMENTATION  = "segmentation"
 TRANSFORM     = "transform"
 MODEL         = "model"
+MARKUP        = "markup"
 ANY           = "any"
 
 
@@ -165,3 +166,83 @@ class SlicerBaseNode:
 
     def __repr__(self):
         return f"<{self.__class__.__name__} dirty={self.is_dirty}>"
+
+
+# ---------------------------------------------------------------------------
+# LinkedModuleNode — thin wrapper around an existing Slicer module
+# ---------------------------------------------------------------------------
+
+class LinkedModuleNode(SlicerBaseNode):
+    """
+    Base class for nodes that are *thin wrappers* around an existing
+    Slicer module.  When the user double-clicks the node, Slicer
+    switches to LINKED_MODULE and the module's native widget shows up
+    in the left panel — pre-configured to point at this node's data.
+
+    Subclasses typically only need to set:
+      - LINKED_MODULE  : str    (the Slicer module name)
+      - INPUT_PORTS    : list   (typed ports for the data flow)
+      - OUTPUT_PORTS   : list   (often a passthrough — same MRML node out)
+      - INPUT_SETTERS  : dict   ({port_name: 'setterMethodName'} mapping
+                                  how each input is pushed to the module
+                                  widget).  Multiple candidate setter
+                                  names may be supplied as a tuple.
+
+    `execute(inputs)` defaults to passthrough (each input becomes the
+    same-named output) so the data just flows through untouched —
+    visualization tweaks happen inside the linked module's widget.
+    Override execute() if the node actually transforms data.
+    """
+
+    LINKED_MODULE = None
+    INPUT_SETTERS = {}      # {port_name: 'setterName'} or {port_name: ('setA', 'setB')}
+
+    # ------------------------------------------------------------------
+
+    def configure_module_widget(self, module_widget, node_item):
+        """Push each input port's value to the module widget's setter."""
+        for port_name, setter_spec in self.INPUT_SETTERS.items():
+            value = self._resolve_input(node_item, port_name)
+            if value is None:
+                continue
+            setters = (setter_spec,) if isinstance(setter_spec, str) else tuple(setter_spec)
+            for setter_name in setters:
+                if hasattr(module_widget, setter_name):
+                    try:
+                        getattr(module_widget, setter_name)(value)
+                        break
+                    except Exception:
+                        continue
+
+    def _resolve_input(self, node_item, port_name):
+        """Walk upstream to fetch the current value at our `port_name` input."""
+        if node_item is None:
+            return self._cache.get(port_name)
+        scene = node_item.scene()
+        if scene is None or not hasattr(scene, 'get_incoming_edge'):
+            return self._cache.get(port_name)
+        in_port = node_item.get_port(port_name, is_input=True)
+        if in_port is None:
+            return self._cache.get(port_name)
+        edge = scene.get_incoming_edge(in_port)
+        if edge is None or edge.source_port is None:
+            return self._cache.get(port_name)
+        up = edge.source_port.node_item.node_data
+        return up._cache.get(edge.source_port.port_name)
+
+    # Default execute: pure passthrough.  Each input maps to a same-named
+    # output if both ports exist.  Override for nodes that transform data.
+    def execute(self, inputs):
+        result = {}
+        out_names = {p[0] for p in self.OUTPUT_PORTS}
+        for in_name, value in inputs.items():
+            if value is None:
+                continue
+            self._cache[in_name] = value
+            if in_name in out_names:
+                result[in_name] = value
+            else:
+                # Match the first output port if naming differs
+                if self.OUTPUT_PORTS and len(self.OUTPUT_PORTS) == 1:
+                    result[self.OUTPUT_PORTS[0][0]] = value
+        return result

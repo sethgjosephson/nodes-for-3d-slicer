@@ -303,9 +303,22 @@ class NodeEditorCanvas(QGraphicsView):
         if not selected:
             return
         self._scene.capture_undo()
-        for ni in selected:
+        self._delete_with_splice(selected)
+
+    def _delete_with_splice(self, items):
+        """Delete each item; if it sits in a pipe, splice the pipe back
+        together (upstream port → downstream port directly)."""
+        sel_set = {id(ni) for ni in items}
+        for ni in items:
+            plan = self._scene.build_splice_out_plan(ni)
+            # Skip pairs where either side belongs to another being-deleted node
+            plan = [(u, d) for u, d in plan
+                    if id(u.node_item) not in sel_set
+                    and id(d.node_item) not in sel_set]
             self._router.clear_node(ni)
             self._scene.remove_node(ni)
+            for up, down in plan:
+                self._scene.connect_ports(up, down)
 
     # ------------------------------------------------------------------
     # Clipboard (copy / cut / paste)
@@ -324,9 +337,7 @@ class NodeEditorCanvas(QGraphicsView):
             return
         _CLIPBOARD = clip
         self._scene.capture_undo()
-        for ni in list(self._scene.selected_node_items()):
-            self._router.clear_node(ni)
-            self._scene.remove_node(ni)
+        self._delete_with_splice(list(self._scene.selected_node_items()))
 
     def _paste_from_clipboard(self):
         if not _CLIPBOARD:
