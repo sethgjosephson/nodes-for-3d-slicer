@@ -4,6 +4,7 @@ set(MODULE_TITLE "Node Editor")
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
   NodeGraph/__init__.py
+  NodeGraph/_qt.py
   NodeGraph/constants.py
   NodeGraph/canvas.py
   NodeGraph/scene.py

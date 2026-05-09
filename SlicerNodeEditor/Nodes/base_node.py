@@ -52,6 +52,14 @@ class SlicerBaseNode:
     OUTPUT_PORTS = []
     PROPERTIES   = []
 
+    # Optional: name of a Slicer module whose widget should be shown in the
+    # left panel when this node is selected (e.g. 'VolumeRendering',
+    # 'SegmentEditor').  When set, Slicer auto-switches to that module
+    # and `configure_module_widget` is called to point it at this node's
+    # data.  When None (default), the standard PROPERTIES form is built
+    # in the Node Editor's own properties panel.
+    LINKED_MODULE = None
+
     # ------------------------------------------------------------------
 
     def __init__(self):
@@ -106,11 +114,48 @@ class SlicerBaseNode:
         pass
 
     # ------------------------------------------------------------------
+    # Custom properties widget (optional)
+    # ------------------------------------------------------------------
+
+    def build_properties_widget(self, parent, node_item):
+        """
+        Optional hook: return a fully-built QWidget to embed in the
+        properties panel.  Return None (default) to fall back to the
+        auto-generated PROPERTIES form.
+
+        Most nodes should use LINKED_MODULE instead — set that to the
+        name of a Slicer module and Slicer's own widget for that module
+        will be shown in the left panel.  This hook is for nodes that
+        want a fully bespoke widget.
+        """
+        return None
+
+    def configure_module_widget(self, module_widget, node_item):
+        """
+        Called after Slicer switches to LINKED_MODULE.  Override to
+        point the module widget at this node's data — typically by
+        calling its `setMRMLVolumeNode(...)` / `setSegmentationNode(...)`
+        / similar setter with the value cached on this node.
+        """
+        pass
+
+    # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
     def get_cached_output(self, port_name):
         return self._cache.get(port_name)
+
+    def _get_or_create_output(self, port_name, name_hint):
+        """Return cached output MRML node or create a fresh one."""
+        import slicer
+        existing = self._cache.get(port_name)
+        if existing and slicer.mrmlScene.GetNodeByID(existing.GetID()):
+            return existing
+        new_node = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode')
+        new_node.SetName(name_hint)
+        new_node.CreateDefaultDisplayNodes()
+        return new_node
 
     def mark_dirty(self):
         self.is_dirty = True

@@ -5,9 +5,9 @@ When target_port is None the edge is a "drag preview" and its far end
 follows self._float_end (a QPointF in scene coordinates).
 """
 
-from PySide2.QtWidgets import QGraphicsPathItem
-from PySide2.QtCore    import QPointF, Qt
-from PySide2.QtGui     import QPainter, QPainterPath, QPen, QColor
+from ._qt import (QGraphicsPathItem, QPointF, Qt,
+                   QPainter, QPainterPath, QPainterPathStroker,
+                   QPen, QBrush, QColor)
 
 from .constants import (
     EDGE_WIDTH, EDGE_CTRL_MIN, EDGE_DRAG_CLR,
@@ -24,18 +24,26 @@ class EdgeItem(QGraphicsPathItem):
         self.source_port = source_port    # PortItem (output port)
         self.target_port = target_port    # PortItem (input port) or None
         self._float_end  = QPointF(0, 0) # used when target_port is None
+        self._drop_highlight = False     # set while a node is hovering for splice
 
         self.setZValue(1)               # below ports (z=2), above node body (z=0)
         self.setFlag(self.ItemIsSelectable, True)
         self.setAcceptHoverEvents(True)
 
-        self._pen_normal   = self._make_pen(source_port)
-        self._pen_selected = QPen(QColor(220, 220, 60), EDGE_WIDTH + 1.5,
-                                  Qt.SolidLine, Qt.RoundCap)
-        self._pen_drag     = QPen(QColor(*EDGE_DRAG_CLR), EDGE_WIDTH,
-                                  Qt.DashLine, Qt.RoundCap)
+        self._pen_normal    = self._make_pen(source_port)
+        self._pen_selected  = QPen(QColor(220, 220, 60), EDGE_WIDTH + 1.5,
+                                   Qt.SolidLine, Qt.RoundCap)
+        self._pen_drag      = QPen(QColor(*EDGE_DRAG_CLR), EDGE_WIDTH,
+                                   Qt.DashLine, Qt.RoundCap)
+        self._pen_highlight = QPen(QColor(255, 200, 60), EDGE_WIDTH + 2.5,
+                                   Qt.SolidLine, Qt.RoundCap)
 
         self.update_path()
+
+    def set_drop_highlight(self, on):
+        if self._drop_highlight != bool(on):
+            self._drop_highlight = bool(on)
+            self.update()
 
     # ------------------------------------------------------------------
     # Path geometry
@@ -57,8 +65,8 @@ class EdgeItem(QGraphicsPathItem):
         ctrl_offset = max(EDGE_CTRL_MIN, dy * 0.5)
 
         # Source exits downward, target enters from above
-        p2 = p1 + QPointF(0,  ctrl_offset)
-        p3 = p4 - QPointF(0,  ctrl_offset)
+        p2 = QPointF(p1.x(), p1.y() + ctrl_offset)
+        p3 = QPointF(p4.x(), p4.y() - ctrl_offset)
 
         path = QPainterPath(p1)
         path.cubicTo(p2, p3, p4)
@@ -76,7 +84,9 @@ class EdgeItem(QGraphicsPathItem):
     def paint(self, painter, option, widget=None):
         painter.setRenderHint(QPainter.Antialiasing)
 
-        if self.target_port is None:
+        if self._drop_highlight:
+            pen = self._pen_highlight
+        elif self.target_port is None:
             pen = self._pen_drag
         elif self.isSelected():
             pen = self._pen_selected
@@ -84,16 +94,13 @@ class EdgeItem(QGraphicsPathItem):
             pen = self._pen_normal
 
         painter.setPen(pen)
-        painter.setBrush(Qt.NoBrush)
+        painter.setBrush(QBrush())
         painter.drawPath(self.path())
 
     def boundingRect(self):
-        # Inflate base bounding rect to account for pen width
-        return super().boundingRect().adjusted(-4, -4, 4, 4)
+        return QGraphicsPathItem.boundingRect(self).adjusted(-4, -4, 4, 4)
 
     def shape(self):
-        # Wider hit area for easier selection/hover
-        from PySide2.QtGui import QPainterPathStroker
         stroker = QPainterPathStroker()
         stroker.setWidth(12)
         return stroker.createStroke(self.path())

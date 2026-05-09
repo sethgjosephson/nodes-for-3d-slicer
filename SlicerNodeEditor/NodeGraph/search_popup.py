@@ -6,10 +6,8 @@ Type to filter the node list, arrow-keys to navigate,
 Enter or double-click to place the selected node, Escape to dismiss.
 """
 
-from PySide2.QtWidgets import (QWidget, QVBoxLayout, QLineEdit,
-                                QListWidget, QListWidgetItem, QFrame)
-from PySide2.QtCore    import Qt, Signal, QPoint
-from PySide2.QtGui     import QColor, QPalette, QFont
+from ._qt import (QWidget, QVBoxLayout, QLineEdit, QListWidget, QListWidgetItem,
+                   QFrame, Qt, Signal, QPoint, QEvent, QColor, QPalette, QFont)
 
 from .constants import (
     POPUP_WIDTH, POPUP_MAX_HEIGHT, POPUP_BG,
@@ -26,20 +24,24 @@ class SearchPopup(QWidget):
     node_chosen(node_class)   emitted when user confirms a node choice
     """
 
-    node_chosen = Signal(object)   # emits the SlicerBaseNode subclass
+    node_chosen = Signal(object)   # kept for API compatibility
 
-    def __init__(self, canvas, scene_pos, registry):
+    def __init__(self, canvas, scene_pos, registry, on_choose=None):
         """
         Parameters
         ----------
         canvas     : NodeEditorCanvas  (parent widget for positioning)
         scene_pos  : QPointF  scene coordinates where the new node will land
         registry   : list of SlicerBaseNode subclasses
+        on_choose  : callable(cls)  invoked directly when a node is picked
+                     (more reliable than the Signal under PythonQt)
         """
         super().__init__(canvas, Qt.Popup | Qt.FramelessWindowHint)
 
-        self._scene_pos = scene_pos
-        self._registry  = registry
+        self._scene_pos  = scene_pos
+        self._registry   = registry
+        self._row_to_cls = {}    # row index → node class (avoids QVariant)
+        self._on_choose  = on_choose
 
         self._build_ui()
         self._populate(registry)
@@ -47,7 +49,7 @@ class SearchPopup(QWidget):
 
         # Size and position
         self.setFixedWidth(POPUP_WIDTH)
-        view_pt  = canvas.mapFromScene(scene_pos).toPoint()
+        view_pt  = canvas.mapFromScene(scene_pos)
         glob_pt  = canvas.mapToGlobal(view_pt)
         self.move(glob_pt)
 
@@ -69,6 +71,7 @@ class SearchPopup(QWidget):
 
         self._list = QListWidget()
         self._list.setMaximumHeight(POPUP_MAX_HEIGHT - 36)
+        self._list.itemClicked.connect(self._on_activated)
         self._list.itemActivated.connect(self._on_activated)
         self._list.itemDoubleClicked.connect(self._on_activated)
         layout.addWidget(self._list)
@@ -118,6 +121,7 @@ class SearchPopup(QWidget):
 
     def _populate(self, registry):
         self._list.clear()
+        self._row_to_cls.clear()
         # Group by category
         cats = {}
         for cls in registry:
@@ -136,8 +140,8 @@ class SearchPopup(QWidget):
 
             for cls in sorted(cats[cat], key=lambda c: c.NODE_NAME):
                 item = QListWidgetItem(f"    {cls.NODE_NAME}")
-                item.setData(Qt.UserRole, cls)
                 self._list.addItem(item)
+                self._row_to_cls[self._list.count - 1] = cls
 
         # Pre-select the first real node
         self._select_first()
@@ -145,6 +149,7 @@ class SearchPopup(QWidget):
     def _filter(self, text):
         text = text.strip().lower()
         self._list.clear()
+        self._row_to_cls.clear()
 
         if not text:
             self._populate(self._registry)
@@ -156,15 +161,15 @@ class SearchPopup(QWidget):
 
         for cls in sorted(matches, key=lambda c: c.NODE_NAME):
             item = QListWidgetItem(cls.NODE_NAME)
-            item.setData(Qt.UserRole, cls)
             self._list.addItem(item)
+            self._row_to_cls[self._list.count - 1] = cls
 
         self._select_first()
 
     def _select_first(self):
-        for i in range(self._list.count()):
+        for i in range(self._list.count):
             item = self._list.item(i)
-            if item.flags() & Qt.ItemIsEnabled:
+            if int(item.flags()) & int(Qt.ItemIsEnabled):
                 self._list.setCurrentItem(item)
                 return
 
@@ -173,10 +178,23 @@ class SearchPopup(QWidget):
     # ------------------------------------------------------------------
 
     def _on_activated(self, item):
-        cls = item.data(Qt.UserRole)
-        if cls is not None:
+        row = self._list.row(item)
+        cls = self._row_to_cls.get(row)
+        if cls is None:
+            return
+        # Direct callback first (reliable), then signal (best-effort)
+        try:
+            if self._on_choose is not None:
+                self._on_choose(cls)
+        except Exception as exc:
+            import slicer
+            slicer.util.errorDisplay(
+                f"Failed to place node '{cls.__name__}':\n{exc}")
+        try:
             self.node_chosen.emit(cls)
-            self.close()
+        except Exception:
+            pass
+        self.close()
 
     def _confirm_selection(self):
         item = self._list.currentItem()
@@ -188,7 +206,6 @@ class SearchPopup(QWidget):
     # ------------------------------------------------------------------
 
     def eventFilter(self, obj, event):
-        from PySide2.QtCore import QEvent
         if obj is self._search and event.type() == QEvent.KeyPress:
             key = event.key()
             if key == Qt.Key_Down:
@@ -203,16 +220,15 @@ class SearchPopup(QWidget):
             if key == Qt.Key_Escape:
                 self.close()
                 return True
-        return super().eventFilter(obj, event)
+        return False
 
     def _move_selection(self, delta):
-        row   = self._list.currentRow()
-        count = self._list.count()
-        # Skip non-selectable header rows
+        row   = self._list.currentRow
+        count = self._list.count
         new_row = row + delta
         while 0 <= new_row < count:
             item = self._list.item(new_row)
-            if item.flags() & Qt.ItemIsEnabled:
+            if int(item.flags()) & int(Qt.ItemIsEnabled):
                 self._list.setCurrentRow(new_row)
                 return
             new_row += delta

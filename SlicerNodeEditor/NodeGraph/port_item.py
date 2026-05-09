@@ -6,9 +6,8 @@ Ports live as child items of NodeItem and are positioned on its top edge
 creation; releasing on a compatible port finalises the connection.
 """
 
-from PySide2.QtWidgets import QGraphicsObject, QGraphicsTextItem
-from PySide2.QtCore    import QRectF, QPointF, Qt, Signal
-from PySide2.QtGui     import QPainter, QColor, QPen, QBrush, QFont
+from ._qt import (QGraphicsObject, QGraphicsTextItem, QRectF, QPointF, Qt, Signal,
+                   QPainter, QColor, QPen, QBrush, QFont)
 
 from .constants import (
     PORT_RADIUS, PORT_HIT_RADIUS, PORT_COLORS,
@@ -23,7 +22,7 @@ class PortItem(QGraphicsObject):
     drop_attempted = Signal(object, object)  # (source_port, target_port)
 
     def __init__(self, port_name, label, data_type, is_input, node_item):
-        super().__init__(parent=node_item)
+        super().__init__(node_item)
 
         self.port_name  = port_name
         self.label      = label
@@ -39,7 +38,7 @@ class PortItem(QGraphicsObject):
         self.setZValue(2)                    # above node body
 
         # Label drawn as a child text item
-        self._label_item = QGraphicsTextItem(label, parent=self)
+        self._label_item = QGraphicsTextItem(label, self)
         font = QFont("Arial", PORT_LABEL_FONT_SZ)
         self._label_item.setFont(font)
         self._label_item.setDefaultTextColor(QColor(180, 180, 180))
@@ -87,7 +86,7 @@ class PortItem(QGraphicsObject):
             if scene is not None:
                 scene.start_edge_drag(self)
         else:
-            super().mousePressEvent(event)
+            QGraphicsObject.mousePressEvent(self, event)
 
     def mouseReleaseEvent(self, event):
         # The scene's mouseReleaseEvent handles finalising the connection.
