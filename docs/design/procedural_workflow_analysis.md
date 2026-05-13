@@ -248,6 +248,313 @@ In recommended order:
 
 Each of these is independent and can land separately.
 
+## 8. Complete module enumeration (from Slicer 5.x docs)
+
+The full module index from
+[slicer.readthedocs.io/en/latest/user_guide/modules/index.html](https://slicer.readthedocs.io/en/latest/user_guide/modules/index.html),
+mapped onto our procedural-fitness scale. Grouping similar modules
+together where they share the same fit profile.
+
+### 8.1 Main modules
+
+| Module | Fit | Treatment |
+|--------|-----|-----------|
+| Data | 🟢 view-only | Subject Hierarchy browser; nothing to wrap. Our graph SHOULD show up here under its own folder |
+| DICOM | 🟢 loader | I/O node wrapping `DICOMUtils.loadPatientByUID(...)` / similar — produces volumes |
+| Markups | ❌ stateful | Placement is brush-mode; wrap as edit-state node only |
+| Models | 🟡 visualization | Linked-module (already done) |
+| Scene Views | 🟢 view-only | Snapshot mechanism; outside graph scope |
+| Segmentations | 🟡 visualization/conversion | Linked-module (already done) |
+| Segment Editor | ❌ partially stateful | Threshold/Otsu/Margin/Logical/Grow-from-seeds ARE scripted; Paint/Erase/Scissors/Draw are brush-mode |
+| Welcome | — | Not a graph concern |
+| Transforms | 🟡 linked | Linked-module (already done) |
+| View Controllers | 🟢 view-only | Tied to view nodes — outside graph scope |
+| Volume Rendering | 🟡 visualization | Linked-module (already done) |
+| Volumes | 🟡 visualization | Linked-module (already done) |
+
+### 8.2 Wizards / Informatics
+
+| Module | Fit | Treatment |
+|--------|-----|-----------|
+| Compare Volumes | 🟢 layout/view | Could be a "Compare" layout node that takes 2+ volumes |
+| Colors | 🟢 ref data | New port type COLOR (`vtkMRMLColorNode`) for lookup-table inputs |
+| Plots | 🟢 procedural | Generate plot from table data — pure function. New port types PLOT_CHART (`vtkMRMLPlotChartNode`) and PLOT_SERIES (`vtkMRMLPlotSeriesNode`) |
+| Sample Data | 🟢 loader | Already wrapped |
+| Tables | 🟢 procedural | Numeric/text data, easy to wrap. New port type TABLE (`vtkMRMLTableNode`) |
+| Terminologies | 🟢 ref data | Code dictionaries; unlikely to need a graph node |
+| Texts | 🟢 procedural | `vtkMRMLTextNode` — useful for LLM nodes, notes, JSON params |
+| DataProbe | 🟢 view-only | Live cursor info; no graph hook |
+
+### 8.3 Registration
+
+| Module | Fit | Treatment |
+|--------|-----|-----------|
+| General Registration (BRAINS) | ⚠️ slow CLI | Already wrapped (`RegistrationNode`); needs async migration |
+| Resample Image / Resize Image (BRAINS) | ✅ procedural | Wrap as separate nodes; reuse output volume |
+| Fiducial / Landmark Registration | 🟡 mixed | Take fiducial inputs from upstream; computation deterministic given fiducial positions |
+| Reformat | 🟢 view-only | Manipulates slice node orientation; outside graph scope |
+| Registration Metric Test | — | Diagnostic; skip |
+
+### 8.4 Quantification
+
+| Module | Fit | Treatment |
+|--------|-----|-----------|
+| Line Profile | ✅ procedural | Take volume + line markup → produce table |
+| Segment statistics | ✅ procedural | Segmentation + volume → table of metrics |
+| PET SUV | ✅ procedural | PET volume → SUV volume |
+
+### 8.5 Sequences — major edge case
+
+| Module | Fit | Treatment |
+|--------|-----|-----------|
+| Sequences | ⚠️ **new dimension** | See §10.5 |
+| Crop volume sequence | ⚠️ sequence-aware | Takes a SEQUENCE input, produces a SEQUENCE output |
+| MultiVolumeImporter / MultiVolumeExplorer | ⚠️ sequence-aware | Loaders for 4D data |
+
+### 8.6 Diffusion
+
+DWI/DTI volume types are distinct (`vtkMRMLDiffusionTensorVolumeNode`,
+`vtkMRMLDiffusionWeightedVolumeNode`). They share most behavior with
+scalar volumes. We can either treat as VOLUME for port-typing or add
+DTI / DWI port subtypes. Punt until someone needs it.
+
+### 8.7 Filtering — bulk of the CLI ecosystem
+
+All members below take 1-2 scalar volumes + params and produce a scalar
+volume via CLI. All are **✅ procedural with caching**:
+
+Add/Cast/Mask/Multiply/Subtract/Threshold Scalar Volumes, Curvature/Gradient
+Anisotropic Diffusion, Gaussian Blur, Grayscale Fill Hole / Grind Peak,
+Median Image Filter, N4ITK Bias correction, CheckerBoard Filter, Extract
+Skeleton, Histogram Matching, Image Label Combine, **Simple Filters**
+(generic SITK wrapper), Voting Binary Hole Filling.
+
+**Strategy**: rather than 20 individual nodes, build a generic
+**`SimpleFilterNode`** with a filter-name property dropdown (driven by
+`SimpleITK`'s registered filter list) — single class, every filter
+available. Keep the dedicated Threshold/Smooth/Median nodes as
+ergonomic shortcuts.
+
+### 8.8 Surface Models — important to flag
+
+| Module | Fit | Treatment |
+|--------|-----|-----------|
+| **Dynamic Modeler** | ✅ **already procedural** | See §10.4 |
+| Grayscale Model Maker / Model Maker | ✅ procedural | Volume → model surface (Marching Cubes) |
+| Label Map Smoothing | ✅ procedural | Labelmap → smoothed labelmap |
+| Merge Models | ✅ procedural | Multiple model inputs → single model |
+| Model To LabelMap | ✅ procedural | Model → labelmap volume |
+| Probe Volume With Model | ✅ procedural | Volume + Model → Model with scalars |
+| Surface Toolbox | ✅ procedural | Decimation / smoothing / normal generation |
+
+### 8.9 Converters / Utilities
+
+| Module | Fit | Treatment |
+|--------|-----|-----------|
+| Crop Volume | ✅ procedural | Already wrapped |
+| Create a DICOM Series | 🟢 export | Save node as DICOM |
+| Orient Scalar Volume | ✅ procedural | Reorient axes |
+| Vector to Scalar Volume | ✅ procedural | Extract component / magnitude |
+| Brain Deface / Strip Rotation / Transform Convert | ✅ procedural | All BRAINS CLI, all wrappable |
+| DICOM Patcher / Endoscopy / Screen Capture | 🟢 specialist | Niche; skip unless requested |
+
+### 8.10 Developer / Testing / Legacy
+
+Skip all of these for graph wrapping — Event Broker, Cameras, Extension
+Wizard, Performance Tests, etc. are not data-flow modules. Legacy/retired
+modules also skip.
+
+---
+
+## 9. Counts by fitness
+
+- **✅ pure / procedural with caching**: ~35 modules — bulk of Filtering,
+  Surface Models, Quantification, Resampling, Converters
+- **⚠️ slow CLI / sequence-aware**: ~5 modules — Registration (BRAINS),
+  Sequences, sequence-aware filters
+- **🟡 visualization / linked-module-only**: ~8 modules — Volume Rendering,
+  Volumes, Models, Transforms, Segmentations, etc. (most already wrapped)
+- **❌ stateful editing**: 2 — Segment Editor paint mode, Markups placement
+- **🟢 view/loader/info-only, no graph wrap needed**: ~12 — Data, Welcome,
+  DataProbe, Scene Views, View Controllers, etc.
+
+So out of ~70 user-facing modules, only **2 are fundamentally non-procedural**.
+The rest split cleanly into wrappable categories.
+
+---
+
+## 10. Edge cases to pre-plan
+
+Things that would silently bite us if we don't design around them.
+
+### 10.1 Subject Hierarchy is a separate tree
+
+The SH is a tree on top of the MRML scene, made of "items" that
+reference data nodes (folders are SH items with no data node). When we
+park our intermediates in a "Node Editor (auto)" folder, we're creating
+SH items, not MRML nodes — different API. The folder item gets a
+folder display node and can be expanded/collapsed in the Data module.
+
+**Plan:** one SH folder per graph instance, created lazily on first node
+insertion; reparent every graph-owned data node under it.
+
+### 10.2 Storage nodes are separate from data nodes
+
+Persistent MRML data nodes (volumes, models, segmentations) have a
+companion `vtkMRMLStorageNode` (one per format). Setting
+`SetSaveWithScene(False)` on the data node does **not** automatically
+set it on the storage node; both must be flagged or the storage node
+will linger when the scene is saved.
+
+**Plan:** helper `_mark_ephemeral(node)` that flips both flags on the
+data node AND all its storage nodes; call from every spot that creates
+or caches an output.
+
+### 10.3 Display nodes per view
+
+A single MRML data node can own multiple display nodes — one for each
+view that renders it. Volume Rendering display nodes are the obvious
+example; segmentations have a 2D-slice display node AND a 3D display
+node. When we "hide other VRs" we should iterate display nodes for the
+relevant type, not assume one-per-volume.
+
+**Plan:** centralize visibility scoping in helpers that walk
+`mrmlScene.GetNodesByClass('vtkMRMLVolumeRenderingDisplayNode')` etc.,
+rather than rely on `GetFirstVolumeRenderingDisplayNode`.
+
+### 10.4 Dynamic Modeler already does what we do
+
+Slicer's `DynamicModeler` module is itself a "rules-based modular
+geometry processing" pipeline. It's surface-mesh focused and not very
+discoverable, but it's the closest existing Slicer feature to a node
+graph. We should NOT compete with it — instead, wrap each Dynamic
+Modeler "tool" (Plane Cut, Hollow, Boundary Cut, Append, etc.) as a
+graph node that creates a Dynamic-Modeler logic node under the hood.
+
+**Plan:** investigate `vtkSlicerDynamicModelerLogic` and consider a
+`DynamicModelerNode` base class once we move into surface-mesh work.
+
+### 10.5 Sequences = the time dimension
+
+`vtkMRMLSequenceNode` holds a list of typed nodes (volumes, transforms,
+markups, …); `vtkMRMLSequenceBrowserNode` controls "which index is
+currently mirrored into the scene as a regular node." This is Nuke's
+time slider, basically.
+
+The hard part: when the browser advances, the *active* scalar volume
+node (which our graph nodes have cached pointers to) effectively
+swaps contents. Some graph downstream nodes (display-only) want the
+swap transparent; others (anything caching a result keyed on the
+current frame) need a per-frame invalidation.
+
+**Plan:**
+- Add new port type **SEQUENCE** for nodes that operate frame-by-frame.
+- Add a **SequenceBrowserNode** graph node that exposes a "current
+  frame" property; observers fire when frame advances.
+- For "per-frame" downstream nodes, observe the browser, mark
+  downstream dirty on frame change.
+- For "stamp once, animate the result" downstream nodes (e.g.
+  Volume Rendering), no change — they read the active node which the
+  browser keeps swapping.
+
+Punt actual implementation until someone has a 4D dataset to demo with.
+
+### 10.6 Singleton nodes
+
+Some MRML nodes are singletons by class — only one per scene. Examples:
+- `vtkMRMLSelectionNode` — current selected node
+- `vtkMRMLInteractionNode` — current interaction mode
+- `vtkMRMLLayoutNode` — current view layout
+- `vtkMRMLAppLogicNode`
+
+We already poke `vtkMRMLLayoutNode` indirectly through the layout
+manager. **Plan:** keep poking it but never try to instance it — and
+never put it under our "Node Editor (auto)" folder.
+
+### 10.7 Node references / reference roles
+
+MRML nodes wire themselves together with **typed references** (a node
+can have a "display" role with multiple display-node IDs, a "transform"
+role with one transform-node ID, etc.). These are completely separate
+from our graph edges. The user-visible MRML scene is itself a directed
+graph; ours is a parallel layer.
+
+**Plan:** never confuse the two. Our edges drive *recomputation*; MRML
+references drive *display and persistence*. They can both exist on the
+same nodes and that's fine.
+
+### 10.8 MRML scene Clear() / Close events
+
+When the user does File → Close Scene or File → New, `mrmlScene.Clear()`
+fires. Every node reference we hold becomes dangling.
+
+**Plan:** observe `vtkMRMLScene.StartCloseEvent` and `EndCloseEvent`.
+On Close, either clear our graph too OR mark all cached outputs as
+needing re-execution. Probably the former — keeping a graph alive
+across scene Close is more confusing than helpful.
+
+### 10.9 Multiple display nodes on segmentations
+
+Segmentations have a 2D display node (for slice overlay) AND a 3D
+display node (for surface in 3D view). They're independent — toggling
+one doesn't affect the other. Our visibility scoping needs to remember
+this.
+
+### 10.10 Slice composite layers (background / foreground / label)
+
+Each slice view has THREE volume slots: background, foreground (with
+opacity), label (with alpha). We currently only set background. Some
+workflows want a volume as foreground over a different background.
+
+**Plan:** add a `slot` property on viewer-route operations (default
+"background", optional "foreground" / "label").
+
+### 10.11 Reentrance: native module widget vs graph node
+
+When the user double-clicks a Volume Rendering node, we switch Slicer
+to the VR module. They then tweak the opacity transfer function by
+hand. Their tweaks fire `ModifiedEvent` on the display node we're
+observing. Our graph node sees its output modified and marks downstream
+dirty — but the **input** didn't change, so re-executing would clobber
+the user's hand-tweak.
+
+**Plan:** distinguish "output changed because we re-ran" from "output
+changed because the user edited it." Use an instance flag set just
+before our `execute()` writes the output:
+
+```python
+self._self_modified = True
+try:
+    do_work()
+finally:
+    self._self_modified = False
+```
+
+In the observer callback, ignore Modified events while `_self_modified`
+is set. Outside our re-execution window, a Modified means the user
+edited it — treat that as the new ground truth and DO mark downstream
+dirty (because downstream sees a changed value), but do NOT re-execute
+the current node.
+
+### 10.12 Plot / Table / Text data are first-class
+
+`vtkMRMLPlotChartNode`, `vtkMRMLTableNode`, `vtkMRMLTextNode`,
+`vtkMRMLColorNode` all live in the MRML scene alongside volumes. We
+should add port types for them now (cheap: just strings) so future
+nodes (Segment Statistics → Table → Plot) can connect them. Doing it
+early is much cheaper than retrofitting.
+
+**Plan:** add `TABLE`, `PLOT`, `TEXT`, `COLOR` to `base_node.py` port
+constants and `PORT_COLORS` in `constants.py`.
+
+### 10.13 DICOM is a database, not a file
+
+The DICOM module wraps `ctkDICOMDatabase`. Loading a study isn't a
+simple file read — it's a query against the local database (which may
+also include remote PACS connections). A "DICOM Loader" graph node
+needs a property for the study UID (or patient name) rather than a
+file path.
+
 ---
 
 **Sources used while writing this analysis**
@@ -258,4 +565,7 @@ Each of these is independent and can land separately.
 - [Using Segment Editor effects programmatically — Slicer Discourse](https://discourse.slicer.org/t/using-segment-editor-effects-programmatically/11561)
 - [`slicer/cli.py` — Slicer source](https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/cli.py)
 - [Slicer Python FAQ](https://slicer.readthedocs.io/en/latest/developer_guide/python_faq.html)
-- Local cache: `docs/slicer_api_cache/` (extracted via `tools/ask_gemma.ps1`)
+- [Slicer modules index — user guide](https://slicer.readthedocs.io/en/latest/user_guide/modules/index.html)
+- [Sequences module — user guide](https://slicer.readthedocs.io/en/latest/user_guide/modules/sequences.html)
+- [`vtkMRMLSequenceBrowserNode.h` — Slicer source](https://github.com/Slicer/Slicer/blob/main/Modules/Loadable/Sequences/MRML/vtkMRMLSequenceBrowserNode.h)
+- Local cache: `docs/slicer_api_cache/`
