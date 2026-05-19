@@ -1,7 +1,8 @@
 """Segmentation nodes."""
 
 import slicer
-from .base_node import SlicerBaseNode, LinkedModuleNode, VOLUME, SEGMENTATION
+from .base_node import (SlicerBaseNode, LinkedModuleNode,
+                         VOLUME, SEGMENTATION, _mark_ephemeral)
 
 
 class SegmentationNode(SlicerBaseNode):
@@ -37,6 +38,7 @@ class SegmentationNode(SlicerBaseNode):
             seg.SetName(volume_node.GetName() + '_seg')
             seg.CreateDefaultDisplayNodes()
             seg.SetReferenceImageGeometryParameterFromVolumeNode(volume_node)
+            _mark_ephemeral(seg)
 
         if seg.GetSegmentation().GetNumberOfSegments() == 0:
             seg.GetSegmentation().AddEmptySegment('Segment_1')
@@ -127,6 +129,7 @@ class SegmentEditorNode(LinkedModuleNode):
                 seg.SetName(vol.GetName() + '_seg')
                 seg.SetReferenceImageGeometryParameterFromVolumeNode(vol)
             seg.CreateDefaultDisplayNodes()
+            _mark_ephemeral(seg)
         return {'seg_out': seg}
 
     def route_to_viewer(self):

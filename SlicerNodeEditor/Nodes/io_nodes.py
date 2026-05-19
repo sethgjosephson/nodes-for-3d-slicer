@@ -1,7 +1,8 @@
 """I/O nodes: load and save volumes from/to disk, and module-linked I/O wrappers."""
 
 import slicer
-from .base_node import SlicerBaseNode, LinkedModuleNode, VOLUME, MARKUP
+from .base_node import (SlicerBaseNode, LinkedModuleNode,
+                         VOLUME, MARKUP, _mark_ephemeral)
 
 
 def _snapshot_scene_node_ids():
@@ -99,6 +100,15 @@ class SampleDataNode(SlicerBaseNode):
 
         # Track every node that appeared during the download
         self._loaded_node_ids = [nid for nid in after if nid not in before]
+
+        # Mark every loaded node as graph-owned (group under SH folder,
+        # skip .mrb persistence). Multi-file samples can load volumes,
+        # segmentations, transforms, markups; we process them all.
+        for nid in self._loaded_node_ids:
+            n = slicer.mrmlScene.GetNodeByID(nid)
+            if n is not None:
+                _mark_ephemeral(n)
+
         return {'volume_out': primary}
 
     def route_to_viewer(self):
@@ -125,6 +135,7 @@ class LoadVolumeNode(SlicerBaseNode):
         # Remove the previously-loaded volume so we don't accumulate
         _remove_cached_volume(self, 'volume_out')
         node = slicer.util.loadVolume(path)
+        _mark_ephemeral(node)
         return {'volume_out': node}
 
     def route_to_viewer(self):

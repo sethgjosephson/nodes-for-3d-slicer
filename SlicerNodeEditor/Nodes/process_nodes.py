@@ -1,7 +1,7 @@
 """Volume processing nodes that wrap existing Slicer modules."""
 
 import slicer
-from .base_node import LinkedModuleNode, VOLUME
+from .base_node import LinkedModuleNode, VOLUME, _mark_ephemeral
 
 
 class CropVolumeNode(LinkedModuleNode):
@@ -41,6 +41,7 @@ class CropVolumeNode(LinkedModuleNode):
         if param is None or not slicer.mrmlScene.GetNodeByID(param.GetID()):
             param = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLCropVolumeParametersNode')
             param.SetName(vol.GetName() + '_cropParam')
+            _mark_ephemeral(param)
         param.SetInputVolumeNodeID(vol.GetID())
 
         # Reuse or create the ROI markup
@@ -48,6 +49,7 @@ class CropVolumeNode(LinkedModuleNode):
         if roi is None or not slicer.mrmlScene.GetNodeByID(roi.GetID()):
             roi = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsROINode')
             roi.SetName(vol.GetName() + '_roi')
+            _mark_ephemeral(roi)
         param.SetROINodeID(roi.GetID())
         cv_logic.SnapROIToVoxelGrid(param)
         cv_logic.FitROIToInputVolume(param)
@@ -58,6 +60,7 @@ class CropVolumeNode(LinkedModuleNode):
             out = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode')
             out.SetName(vol.GetName() + '_cropped')
             out.CreateDefaultDisplayNodes()
+            _mark_ephemeral(out)
         param.SetOutputVolumeNodeID(out.GetID())
 
         param.SetVoxelBased(not bool(self.get_property('isotropic')))

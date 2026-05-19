@@ -2,7 +2,7 @@
 
 import slicer
 from .base_node import (SlicerBaseNode, LinkedModuleNode,
-                         VOLUME, SEGMENTATION, MODEL)
+                         VOLUME, SEGMENTATION, MODEL, _mark_ephemeral)
 
 
 class VolumeRenderingNode(LinkedModuleNode):
@@ -27,13 +27,20 @@ class VolumeRenderingNode(LinkedModuleNode):
         vr_logic = slicer.modules.volumerendering.logic()
 
         dn = vr_logic.GetFirstVolumeRenderingDisplayNode(node)
+        dn_was_just_created = False
         if dn is None and hasattr(vr_logic, 'CreateDefaultVolumeRenderingNodes'):
             dn = vr_logic.CreateDefaultVolumeRenderingNodes(node)
+            dn_was_just_created = dn is not None
         if dn is None:
             dn = vr_logic.CreateVolumeRenderingDisplayNode()
             slicer.mrmlScene.AddNode(dn)
             node.AddAndObserveDisplayNodeID(dn.GetID())
             vr_logic.UpdateDisplayNodeFromVolumeNode(dn, node)
+            dn_was_just_created = True
+
+        # The display node belongs to the graph, not the user's saved scene.
+        if dn_was_just_created and dn is not None:
+            _mark_ephemeral(dn)
 
         return {}
 

@@ -1,9 +1,15 @@
 """
-SlicerBaseNode — pure-Python base class for all pipeline nodes.
+SlicerBaseNode, the pure-Python base class for all pipeline nodes.
 
 NodeItem (QGraphicsObject) wraps this for canvas representation.
 Subclasses declare ports and properties as class attributes, then
 implement execute() and optionally route_to_viewer().
+
+This module also exposes the graph-ownership helpers
+(`_mark_ephemeral`, `_adopt_into_graph_folder`) used by every wrapper
+that creates MRML nodes, so those nodes end up grouped in the
+"Node Editor (auto)" Subject Hierarchy folder and are skipped on
+.mrb save by default.
 """
 
 # ---------------------------------------------------------------------------
@@ -16,6 +22,120 @@ TRANSFORM     = "transform"
 MODEL         = "model"
 MARKUP        = "markup"
 ANY           = "any"
+
+
+# ---------------------------------------------------------------------------
+# Graph-ownership helpers: mark MRML nodes as graph-owned and group them
+# under a Subject Hierarchy folder so they do not clutter the Data module.
+# ---------------------------------------------------------------------------
+
+NODE_EDITOR_FOLDER_NAME = "Node Editor (auto)"
+NODE_EDITOR_FOLDER_ATTR = "NodeEditor.AutoFolder"
+
+
+def _get_or_create_graph_folder():
+    """
+    Return the Subject Hierarchy item ID of the folder we park graph-owned
+    nodes under, creating it on first use. Returns 0 if the SH node is
+    unavailable (e.g. early in module load).
+    """
+    import slicer
+    import vtk
+    sh = slicer.mrmlScene.GetSubjectHierarchyNode()
+    if sh is None:
+        return 0
+    scene_item = sh.GetSceneItemID()
+    # Look for an existing folder marked with our attribute
+    children = vtk.vtkIdList()
+    try:
+        sh.GetItemChildren(scene_item, children)
+    except Exception:
+        children = None
+    if children is not None:
+        for i in range(children.GetNumberOfIds()):
+            cid = children.GetId(i)
+            try:
+                if sh.GetItemAttribute(cid, NODE_EDITOR_FOLDER_ATTR) == "1":
+                    return cid
+            except Exception:
+                continue
+    # Not found, create one
+    try:
+        folder_id = sh.CreateFolderItem(scene_item, NODE_EDITOR_FOLDER_NAME)
+    except Exception:
+        return 0
+    if folder_id and folder_id != 0:
+        try:
+            sh.SetItemAttribute(folder_id, NODE_EDITOR_FOLDER_ATTR, "1")
+        except Exception:
+            pass
+    return folder_id
+
+
+def _adopt_into_graph_folder(mrml_node):
+    """
+    Reparent the given data node under the Node Editor (auto) folder in
+    Subject Hierarchy. Safe to call on nodes that have no SH item yet
+    (does nothing in that case).
+    """
+    if mrml_node is None:
+        return
+    import slicer
+    sh = slicer.mrmlScene.GetSubjectHierarchyNode()
+    if sh is None:
+        return
+    folder_id = _get_or_create_graph_folder()
+    if not folder_id:
+        return
+    try:
+        item_id = sh.GetItemByDataNode(mrml_node)
+        if item_id and item_id != 0:
+            sh.SetItemParent(item_id, folder_id)
+    except Exception:
+        pass
+
+
+def _mark_ephemeral(mrml_node):
+    """
+    Mark a MRML node as graph-owned:
+      1. SetSaveWithScene(False) on the data node and on every one of
+         its storage and display child nodes, so .mrb saves do not
+         accumulate stale intermediates.
+      2. Reparent the node under the Node Editor (auto) folder for
+         visual grouping in the Data module.
+
+    NOTE: we deliberately do NOT call SetHideFromEditors(True). Graph
+    nodes stay visible in the Data module and in node selectors;
+    they're just neatly grouped under one folder. Use a stronger
+    "hide entirely" helper later if a node should be fully internal
+    (e.g. a transient parameter node).
+    """
+    if mrml_node is None:
+        return
+
+    def _flip_save(n):
+        if n is None:
+            return
+        try:
+            n.SetSaveWithScene(False)
+        except Exception:
+            pass
+
+    _flip_save(mrml_node)
+    # Storage nodes (volumes, models, segmentations carry these)
+    try:
+        for i in range(mrml_node.GetNumberOfStorageNodes()):
+            _flip_save(mrml_node.GetNthStorageNode(i))
+    except Exception:
+        pass
+    # Display nodes (vtkMRMLDisplayableNode subclasses)
+    try:
+        for i in range(mrml_node.GetNumberOfDisplayNodes()):
+            _flip_save(mrml_node.GetNthDisplayNode(i))
+    except Exception:
+        pass
+
+    _adopt_into_graph_folder(mrml_node)
 
 
 class SlicerBaseNode:
@@ -148,7 +268,7 @@ class SlicerBaseNode:
         return self._cache.get(port_name)
 
     def _get_or_create_output(self, port_name, name_hint):
-        """Return cached output MRML node or create a fresh one."""
+        """Return cached output MRML node or create a fresh graph-owned one."""
         import slicer
         existing = self._cache.get(port_name)
         if existing and slicer.mrmlScene.GetNodeByID(existing.GetID()):
@@ -156,6 +276,7 @@ class SlicerBaseNode:
         new_node = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode')
         new_node.SetName(name_hint)
         new_node.CreateDefaultDisplayNodes()
+        _mark_ephemeral(new_node)
         return new_node
 
     def mark_dirty(self):
