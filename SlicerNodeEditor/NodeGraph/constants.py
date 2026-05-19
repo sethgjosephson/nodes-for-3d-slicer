@@ -57,13 +57,18 @@ PORT_LABEL_FONT_SZ = 8
 PORT_HIT_RADIUS    = 12          # larger click target
 
 PORT_COLORS = {
-    "volume":       (210,  90,  90),
-    "labelmap":     ( 90, 170, 210),
-    "segmentation": (170,  90, 210),
-    "transform":    (210, 185,  70),
-    "model":        ( 90, 200,  90),
-    "markup":       (240, 160,  60),
-    "any":          (160, 160, 160),
+    "volume":       (210,  90,  90),   # red
+    "labelmap":     ( 90, 170, 210),   # cyan
+    "segmentation": (170,  90, 210),   # magenta
+    "transform":    (210, 185,  70),   # gold
+    "model":        ( 90, 200,  90),   # green
+    "markup":       (240, 160,  60),   # orange
+    "table":        (120, 195, 175),   # mint
+    "plot":         (200, 110, 175),   # pink
+    "text":         (185, 185, 185),   # light grey
+    "color":        (140, 110, 200),   # purple
+    "sequence":     ( 90, 130, 235),   # bright blue (reserved for 4D)
+    "any":          (160, 160, 160),   # mid grey
 }
 
 # ---------------------------------------------------------------------------

@@ -352,6 +352,13 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         try:
             for ni in scene.all_node_items():
                 nd = ni.node_data
+                # Drop input MRML observers BEFORE the underlying nodes
+                # get deleted, so we don't try to RemoveObserver on dead
+                # pointers later.
+                try:
+                    nd._clear_input_observers()
+                except Exception:
+                    pass
                 # Forget every cached MRML pointer
                 try:
                     nd._cache.clear()

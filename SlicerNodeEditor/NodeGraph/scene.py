@@ -126,6 +126,12 @@ class NodeEditorScene(QGraphicsScene):
 
     def remove_node(self, node_item):
         """Remove node and all its connected edges."""
+        # Drop any MRML observers this node holds before its references go
+        # away, so we don't leak observer tags on lingering MRML nodes.
+        try:
+            node_item.node_data._clear_input_observers()
+        except Exception:
+            pass
         for edge in self.edges_of(node_item):
             self.remove_edge(edge)
         self.removeItem(node_item)

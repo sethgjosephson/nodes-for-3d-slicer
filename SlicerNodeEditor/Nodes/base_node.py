@@ -21,6 +21,11 @@ SEGMENTATION  = "segmentation"
 TRANSFORM     = "transform"
 MODEL         = "model"
 MARKUP        = "markup"
+TABLE         = "table"
+PLOT          = "plot"
+TEXT          = "text"
+COLOR         = "color"
+SEQUENCE      = "sequence"   # reserved for Phase F (4D data)
 ANY           = "any"
 
 
@@ -188,6 +193,23 @@ class SlicerBaseNode:
         self._cache   = {}        # port_name → vtkMRMLNode  (output cache)
         self.is_dirty = True      # True → needs re-execution
 
+        # MRML ModifiedEvent observers on the node's CURRENT input MRML
+        # nodes.  Maintained by _refresh_input_observers() which the
+        # executor calls right after resolving inputs.  Keyed by input
+        # port name; value is (mrml_node, observer_tag).
+        self._input_observers = {}
+
+        # Reentrance flag: set True while our own execute() runs, so any
+        # ModifiedEvent fired by our own activity (e.g. writing to an
+        # output node that's also an upstream-shared MRML node) doesn't
+        # bounce back through our observer and falsely mark us dirty.
+        self._self_modified = False
+
+        # Debounce flag: True while a dirty-mark is already pending via
+        # QTimer.singleShot, so a burst of ModifiedEvents only fires one
+        # dirty propagation.
+        self._dirty_pending = False
+
     # ------------------------------------------------------------------
     # Property access
     # ------------------------------------------------------------------
@@ -284,6 +306,99 @@ class SlicerBaseNode:
 
     def mark_clean(self):
         self.is_dirty = False
+
+    # ------------------------------------------------------------------
+    # MRML observers — auto-dirty when upstream MRML changes externally
+    # ------------------------------------------------------------------
+
+    def _refresh_input_observers(self, node_item):
+        """
+        Rebind ModifiedEvent observers on the MRML nodes currently feeding
+        this node's inputs.  Called by the executor after it resolves
+        inputs for a given _run_node call, so observers always reflect
+        the actual current graph topology and upstream cache state.
+
+        When any of those upstream MRML nodes is later modified by any
+        source (user edit in another module, a script, another graph
+        node), our callback marks this node dirty and propagates dirty
+        downstream.  Debounced via QTimer (B.2) so a burst of
+        ModifiedEvents only triggers one dirty pass.
+
+        Skipped silently if we have no scene reference yet.
+        """
+        self._clear_input_observers()
+        if node_item is None:
+            return
+        scene = node_item.scene()
+        if scene is None or not hasattr(scene, 'get_incoming_edge'):
+            return
+
+        import vtk
+        for port_name, _label, _dtype in self.INPUT_PORTS:
+            in_port = node_item.get_port(port_name, is_input=True)
+            if in_port is None:
+                continue
+            edge = scene.get_incoming_edge(in_port)
+            if edge is None or edge.source_port is None:
+                continue
+            up_node_data = edge.source_port.node_item.node_data
+            mrml_node = up_node_data._cache.get(edge.source_port.port_name)
+            if mrml_node is None:
+                continue
+            try:
+                tag = mrml_node.AddObserver(
+                    vtk.vtkCommand.ModifiedEvent,
+                    lambda caller, event, ni=node_item:
+                        self._on_input_modified(ni))
+                self._input_observers[port_name] = (mrml_node, tag)
+            except Exception:
+                continue
+
+    def _clear_input_observers(self):
+        """Remove every input observer we currently hold."""
+        for port_name, (mrml_node, tag) in list(self._input_observers.items()):
+            try:
+                mrml_node.RemoveObserver(tag)
+            except Exception:
+                pass
+        self._input_observers.clear()
+
+    def _on_input_modified(self, node_item):
+        """
+        Observer callback (debounced).  An upstream MRML node fired a
+        ModifiedEvent.  Mark this graph node and everything downstream
+        dirty, and repaint to show the dirty indicator.
+
+        Suppressed entirely when self._self_modified is set: that means
+        we're inside our own execute() and the Modified event is
+        almost certainly a side-effect of our own write.
+        """
+        if self._self_modified:
+            return
+        if self._dirty_pending:
+            return
+        self._dirty_pending = True
+
+        def _fire():
+            self._dirty_pending = False
+            self.mark_dirty()
+            scene = node_item.scene() if node_item is not None else None
+            if scene is not None and hasattr(scene, 'mark_dirty_from'):
+                try:
+                    scene.mark_dirty_from(node_item)
+                except Exception:
+                    pass
+            try:
+                node_item.update()
+            except Exception:
+                pass
+
+        try:
+            import qt
+            qt.QTimer.singleShot(100, _fire)
+        except Exception:
+            # No Qt event loop available — fire synchronously
+            _fire()
 
     def __repr__(self):
         return f"<{self.__class__.__name__} dirty={self.is_dirty}>"
