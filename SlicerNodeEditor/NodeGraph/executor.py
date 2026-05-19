@@ -100,6 +100,26 @@ class Executor:
     # Internal — single node execution
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _passthrough(node_data, inputs):
+        """
+        For each OUTPUT_PORT, find the first INPUT_PORT with a
+        type-compatible value and forward it through.  Used when a
+        node is disabled (Nuke-style D-key) — the node becomes a
+        no-op, downstream sees the unprocessed upstream data.
+        """
+        result = {}
+        for out_name, _out_label, out_type in node_data.OUTPUT_PORTS:
+            for in_name, _in_label, in_type in node_data.INPUT_PORTS:
+                if (in_type == out_type
+                        or in_type == 'any'
+                        or out_type == 'any'):
+                    val = inputs.get(in_name)
+                    if val is not None:
+                        result[out_name] = val
+                        break
+        return result
+
     def _run_node(self, node_item):
         """Resolve inputs from upstream caches and call node_data.execute()."""
         node_data = node_item.node_data
@@ -134,7 +154,12 @@ class Executor:
         # fired as a side-effect of execute() itself.
         node_data._self_modified = True
         try:
-            result = node_data.execute(inputs)
+            if getattr(node_data, 'is_disabled', False):
+                # Nuke-style passthrough: skip this node's work, forward
+                # the first type-compatible input to each output.
+                result = self._passthrough(node_data, inputs)
+            else:
+                result = node_data.execute(inputs)
         except Exception as exc:
             import slicer
             slicer.util.errorDisplay(

@@ -248,6 +248,11 @@ class NodeEditorCanvas(QGraphicsView):
             self._scene.clearSelection()
             return
 
+        # --- Disable / enable selected nodes (Nuke-style D) ---
+        if key == Qt.Key_D and not ctrl:
+            self._toggle_disable_selected()
+            return
+
         QGraphicsView.keyPressEvent(self, event)
 
     # ------------------------------------------------------------------
@@ -315,6 +320,27 @@ class NodeEditorCanvas(QGraphicsView):
             return
         self._scene.capture_undo()
         self._delete_with_splice(selected)
+
+    def _toggle_disable_selected(self):
+        """Toggle the Nuke-style 'disabled' flag on every selected node.
+        Disabled nodes skip their own work and passthrough the first
+        type-compatible input to each output, so downstream sees the
+        unprocessed upstream data. Useful for quick A/B comparisons."""
+        selected = self._scene.selected_node_items()
+        if not selected:
+            return
+        self._scene.capture_undo()
+        for ni in selected:
+            ni.node_data.is_disabled = not getattr(
+                ni.node_data, 'is_disabled', False)
+            # Disabling/enabling changes the node's output, so mark
+            # downstream dirty and the node itself dirty.
+            ni.node_data.is_dirty = True
+            ni.update()
+            self._scene.mark_dirty_from(ni)
+        # Schedule the auto-rerun so the currently-viewed pipeline
+        # reflects the new on/off state right away.
+        self._schedule_auto_rerun()
 
     def _delete_with_splice(self, items):
         """Delete each item; if it sits in a pipe, splice the pipe back
