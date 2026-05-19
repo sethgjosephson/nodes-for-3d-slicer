@@ -100,6 +100,7 @@ Slicer's bundled PythonQt and SimpleITK only.
 | `Ctrl+Z` / `Y` | Undo / redo |
 | `Del` / `Backspace` | Delete selected nodes. Middle-of-pipe deletions splice the pipe back together. |
 | `F` | Frame all (or selected) nodes |
+| `D` | Disable / enable selected nodes (Nuke-style passthrough). Disabled nodes skip their work and forward their input straight to their output. |
 | `Esc` | Deselect |
 | Scroll wheel | Zoom |
 | Middle-mouse drag | Pan |

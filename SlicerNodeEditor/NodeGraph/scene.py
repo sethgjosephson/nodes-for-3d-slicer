@@ -554,12 +554,13 @@ class NodeEditorScene(QGraphicsScene):
             idx_map[id(ni)] = i
             p = _node_position(ni)
             nodes_data.append({
-                'id':     i,
-                'class':  ni.node_data.__class__.__name__,
-                'module': ni.node_data.__class__.__module__,
-                'x':      p.x(),
-                'y':      p.y(),
-                'props':  dict(ni.node_data._props),
+                'id':       i,
+                'class':    ni.node_data.__class__.__name__,
+                'module':   ni.node_data.__class__.__module__,
+                'x':        p.x(),
+                'y':        p.y(),
+                'props':    dict(ni.node_data._props),
+                'disabled': bool(getattr(ni.node_data, 'is_disabled', False)),
             })
 
         edges_data = []
@@ -609,6 +610,9 @@ class NodeEditorScene(QGraphicsScene):
             for k, v in nd.get('props', {}).items():
                 inst.set_property(k, v)
             ni = self.add_node(inst, QPointF(nd['x'] + ox, nd['y'] + oy))
+            if nd.get('disabled'):
+                ni.node_data.is_disabled = True
+                ni.update()
             ni.setSelected(True)
             new_items[nd['id']] = ni
 
@@ -659,6 +663,7 @@ class NodeEditorScene(QGraphicsScene):
                 'y':        p.y(),
                 'props':    dict(ni.node_data._props),
                 'slot':     ni._viewer_slot,
+                'disabled': bool(getattr(ni.node_data, 'is_disabled', False)),
             })
 
         edges = []
@@ -689,6 +694,9 @@ class NodeEditorScene(QGraphicsScene):
             for k, v in nd.get('props', {}).items():
                 node.set_property(k, v)
             ni    = self.add_node(node, QPointF(nd['x'], nd['y']))
+            if nd.get('disabled'):
+                ni.node_data.is_disabled = True
+                ni.update()
             if nd.get('slot') and router:
                 router._slots[nd['slot']] = ni
                 ni.set_viewer_slot(nd['slot'])

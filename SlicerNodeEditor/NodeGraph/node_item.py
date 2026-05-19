@@ -88,9 +88,15 @@ class NodeItem(QGraphicsObject):
     def paint(self, painter, option, widget=None):
         painter.setRenderHint(QPainter.Antialiasing)
 
-        selected  = self.isSelected()
-        body_rect = QRectF(0, 0, NODE_WIDTH, self._total_h)
+        selected   = self.isSelected()
+        disabled   = bool(getattr(self.node_data, 'is_disabled', False))
+        body_rect  = QRectF(0, 0, NODE_WIDTH, self._total_h)
         title_rect = QRectF(0, 0, NODE_WIDTH, NODE_TITLE_HEIGHT)
+
+        # Dim the entire node when disabled. We restore opacity before
+        # painting the strike-through marker so it stays vivid.
+        if disabled:
+            painter.setOpacity(0.45)
 
         # --- Body (full rounded rect) ---
         path = QPainterPath()
@@ -166,6 +172,15 @@ class NodeItem(QGraphicsObject):
             painter.drawText(
                 QRectF(cx - badge_r, cy - badge_r, badge_r * 2, badge_r * 2),
                 Qt.AlignCenter, str(self._viewer_slot))
+
+        # --- Disabled strike-through line (drawn at full opacity) ---
+        if disabled:
+            painter.setOpacity(1.0)
+            strike_pen = QPen(QColor(220, 60, 60), 2.5, Qt.SolidLine, Qt.RoundCap)
+            painter.setPen(strike_pen)
+            mid_y = NODE_TITLE_HEIGHT + self._body_h / 2
+            painter.drawLine(QPointF(8,             mid_y),
+                             QPointF(NODE_WIDTH - 8, mid_y))
 
     # ------------------------------------------------------------------
     # Selection

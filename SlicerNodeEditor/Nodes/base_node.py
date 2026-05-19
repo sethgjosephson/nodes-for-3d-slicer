@@ -199,9 +199,10 @@ class SlicerBaseNode:
     # ------------------------------------------------------------------
 
     def __init__(self):
-        self._props   = {p['name']: p['default'] for p in self.PROPERTIES}
-        self._cache   = {}        # port_name → vtkMRMLNode  (output cache)
-        self.is_dirty = True      # True → needs re-execution
+        self._props     = {p['name']: p['default'] for p in self.PROPERTIES}
+        self._cache     = {}      # port_name → vtkMRMLNode  (output cache)
+        self.is_dirty   = True    # True → needs re-execution
+        self.is_disabled = False  # Nuke-style D-key: skip execute(), passthrough
 
         # MRML ModifiedEvent observers on the node's CURRENT input MRML
         # nodes.  Maintained by _refresh_input_observers() which the
