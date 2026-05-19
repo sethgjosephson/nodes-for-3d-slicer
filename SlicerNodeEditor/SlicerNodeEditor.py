@@ -78,8 +78,12 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         save_btn  = qt.QPushButton("Save Graph")
         load_btn  = qt.QPushButton("Load Graph")
         clear_btn = qt.QPushButton("Clear")
+        demo_btn  = qt.QPushButton("Demo")
+        demo_btn.setToolTip(
+            "Load a canned test workflow (three pipelines exercising filters, "
+            "linked modules, and multi-VR visibility scoping).")
 
-        for btn in (run_btn, save_btn, load_btn, clear_btn):
+        for btn in (run_btn, save_btn, load_btn, clear_btn, demo_btn):
             btn.setMaximumHeight(24)
             toolbar_layout.addWidget(btn)
         toolbar_layout.addStretch()
@@ -132,6 +136,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         save_btn.connect("clicked()",  self._on_save)
         load_btn.connect("clicked()",  self._on_load)
         clear_btn.connect("clicked()", self._on_clear)
+        demo_btn.connect("clicked()",  self._on_load_demo)
 
         # When the user closes the scene (or opens a different .mrb),
         # drop every node's cached MRML pointers and mark all nodes
@@ -327,6 +332,30 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         with open(path) as f:
             data = json.load(f)
         self._canvas.node_scene.deserialise(data, self._router)
+
+    def _on_load_demo(self):
+        """Load the bundled demo workflow so we have a known-good test
+        layout one click away after a reload."""
+        demo_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'Resources', 'demo_workflow.json')
+        if not os.path.exists(demo_path):
+            slicer.util.errorDisplay(
+                f"Demo workflow not found:\n{demo_path}")
+            return
+        try:
+            with open(demo_path) as f:
+                data = json.load(f)
+        except Exception as exc:
+            slicer.util.errorDisplay(f"Could not read demo workflow:\n{exc}")
+            return
+        # Wipe whatever's currently on the canvas, then deserialise
+        self._clear_graph()
+        try:
+            self._canvas.node_scene.deserialise(data, self._router)
+        except Exception as exc:
+            import traceback; traceback.print_exc()
+            slicer.util.errorDisplay(f"Could not load demo workflow:\n{exc}")
 
     def _on_clear(self):
         """Toolbar Clear button: user-initiated, wipe everything."""
