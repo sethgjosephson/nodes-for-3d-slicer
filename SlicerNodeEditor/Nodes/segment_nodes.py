@@ -34,14 +34,16 @@ class SegmentationNode(SlicerBaseNode):
         lower  = self.get_property('lower')
         upper  = self.get_property('upper')
 
-        # Reuse or create segmentation node
-        seg = self._cache.get('seg_out')
+        # Reuse the segmentation WE own (not whatever _cache currently
+        # holds — that may be an upstream ref left by passthrough).
+        seg = self._owned_outputs.get('seg_out')
         if seg is None or not slicer.mrmlScene.GetNodeByID(seg.GetID()):
             seg = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
             seg.SetName(volume_node.GetName() + '_seg')
             seg.CreateDefaultDisplayNodes()
             seg.SetReferenceImageGeometryParameterFromVolumeNode(volume_node)
             _mark_ephemeral(seg)
+            self._owned_outputs['seg_out'] = seg
 
         if seg.GetSegmentation().GetNumberOfSegments() == 0:
             seg.GetSegmentation().AddEmptySegment('Segment_1')
@@ -127,7 +129,7 @@ class SegmentEditorNode(LinkedModuleNode):
     def execute(self, inputs):
         # If no segmentation is fed in, create a fresh one bound to the
         # volume so the user has something to edit immediately.
-        seg = inputs.get('seg_in') or self._cache.get('seg_out')
+        seg = inputs.get('seg_in') or self._owned_outputs.get('seg_out')
         if seg is None or not slicer.mrmlScene.GetNodeByID(seg.GetID()):
             vol = inputs.get('volume_in')
             seg = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
@@ -136,6 +138,7 @@ class SegmentEditorNode(LinkedModuleNode):
                 seg.SetReferenceImageGeometryParameterFromVolumeNode(vol)
             seg.CreateDefaultDisplayNodes()
             _mark_ephemeral(seg)
+            self._owned_outputs['seg_out'] = seg
         return {'seg_out': seg}
 
     def route_to_viewer(self):

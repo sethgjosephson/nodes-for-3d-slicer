@@ -42,19 +42,22 @@ class RegistrationNode(SlicerBaseNode):
         sampling  = self.get_property('sampling')
         init_mode = self.get_property('init_mode')
 
-        # Reuse or create output nodes
-        xfm = self._cache.get('transform_out')
+        # Reuse the MRML nodes WE own (passthrough may have written
+        # upstream refs into _cache, so read from _owned_outputs).
+        xfm = self._owned_outputs.get('transform_out')
         if xfm is None or not slicer.mrmlScene.GetNodeByID(xfm.GetID()):
             xfm = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
             xfm.SetName(f"{moving.GetName()}_to_{fixed.GetName()}_xfm")
             _mark_ephemeral(xfm)
+            self._owned_outputs['transform_out'] = xfm
 
-        reg_vol = self._cache.get('registered_out')
+        reg_vol = self._owned_outputs.get('registered_out')
         if reg_vol is None or not slicer.mrmlScene.GetNodeByID(reg_vol.GetID()):
             reg_vol = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode')
             reg_vol.SetName(f"{moving.GetName()}_registered")
             reg_vol.CreateDefaultDisplayNodes()
             _mark_ephemeral(reg_vol)
+            self._owned_outputs['registered_out'] = reg_vol
 
         params = {
             'fixedVolume':           fixed,

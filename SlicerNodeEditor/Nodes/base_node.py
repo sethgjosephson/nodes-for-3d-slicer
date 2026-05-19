@@ -200,7 +200,15 @@ class SlicerBaseNode:
 
     def __init__(self):
         self._props     = {p['name']: p['default'] for p in self.PROPERTIES}
-        self._cache     = {}      # port_name → vtkMRMLNode  (output cache)
+        # _cache: what DOWNSTREAM sees on each port. Mirrors execute()'s
+        # return AND gets overwritten by passthrough when this node is
+        # disabled (so downstream reads upstream's value).
+        self._cache     = {}
+        # _owned_outputs: MRML nodes THIS node personally created and is
+        # responsible for. Passthrough does NOT touch this. Reused on
+        # subsequent execute() calls so each node keeps writing back to
+        # the same MRML node instead of polluting an upstream input.
+        self._owned_outputs = {}
         self.is_dirty   = True    # True → needs re-execution
         self.is_disabled = False  # Nuke-style D-key: skip execute(), passthrough
 
@@ -301,15 +309,22 @@ class SlicerBaseNode:
         return self._cache.get(port_name)
 
     def _get_or_create_output(self, port_name, name_hint):
-        """Return cached output MRML node or create a fresh graph-owned one."""
+        """
+        Return the MRML node this node owns for port_name, creating it
+        on first use. Read from _owned_outputs (NOT _cache) so that
+        passthrough — which writes upstream refs into _cache while a
+        node is disabled — never tricks us into mutating an upstream
+        input's MRML data on the next enabled execute().
+        """
         import slicer
-        existing = self._cache.get(port_name)
+        existing = self._owned_outputs.get(port_name)
         if existing and slicer.mrmlScene.GetNodeByID(existing.GetID()):
             return existing
         new_node = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode')
         new_node.SetName(name_hint)
         new_node.CreateDefaultDisplayNodes()
         _mark_ephemeral(new_node)
+        self._owned_outputs[port_name] = new_node
         return new_node
 
     def mark_dirty(self):

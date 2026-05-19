@@ -54,13 +54,16 @@ class CropVolumeNode(LinkedModuleNode):
         cv_logic.SnapROIToVoxelGrid(param)
         cv_logic.FitROIToInputVolume(param)
 
-        # Reuse or create the output volume
-        out = self._cache.get('volume_out')
+        # Reuse the cropped-volume node WE own. (_cache may carry an
+        # upstream ref left by passthrough; that is not safe to write
+        # CropVolume output into.)
+        out = self._owned_outputs.get('volume_out')
         if out is None or not slicer.mrmlScene.GetNodeByID(out.GetID()):
             out = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode')
             out.SetName(vol.GetName() + '_cropped')
             out.CreateDefaultDisplayNodes()
             _mark_ephemeral(out)
+            self._owned_outputs['volume_out'] = out
         param.SetOutputVolumeNodeID(out.GetID())
 
         param.SetVoxelBased(not bool(self.get_property('isotropic')))
