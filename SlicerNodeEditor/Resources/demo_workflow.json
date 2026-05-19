@@ -17,7 +17,7 @@
       "module":  "Nodes.filter_nodes",
       "x":       -360,
       "y":       -60,
-      "props":   {"lower": 100.0, "upper": 500.0, "outside": 0.0},
+      "props":   {"lower": 100.0, "upper": 500.0, "outside": 0, "inside": 1},
       "slot":    null
     },
     {

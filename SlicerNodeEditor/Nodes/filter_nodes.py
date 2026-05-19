@@ -19,8 +19,12 @@ class ThresholdNode(SlicerBaseNode):
          'default': 100.0, 'min': -2000.0, 'max': 5000.0},
         {'name': 'upper', 'label': 'Upper',  'type': 'float',
          'default': 500.0, 'min': -2000.0, 'max': 5000.0},
-        {'name': 'outside', 'label': 'Outside Value', 'type': 'float',
-         'default': 0.0, 'min': -2000.0, 'max': 5000.0},
+        # outside is a uint8_t in SimpleITK.BinaryThreshold (0-255).
+        # The output is a binary mask; 0 outside is the typical value.
+        {'name': 'outside', 'label': 'Outside Value', 'type': 'int',
+         'default': 0, 'min': 0, 'max': 255},
+        {'name': 'inside',  'label': 'Inside Value',  'type': 'int',
+         'default': 1, 'min': 0, 'max': 255},
     ]
 
     def execute(self, inputs):
@@ -28,14 +32,17 @@ class ThresholdNode(SlicerBaseNode):
         if node is None:
             raise ValueError("Threshold: no input volume connected.")
 
-        lower   = self.get_property('lower')
-        upper   = self.get_property('upper')
-        outside = self.get_property('outside')
+        lower   = float(self.get_property('lower'))
+        upper   = float(self.get_property('upper'))
+        # SimpleITK requires inside/outside to be uint8_t — cast defensively
+        # so older saved graphs with float values keep working.
+        outside = int(self.get_property('outside'))
+        inside  = int(self.get_property('inside'))
 
         img    = sitkUtils.PullVolumeFromSlicer(node)
         result = sitk.BinaryThreshold(
             img, lowerThreshold=lower, upperThreshold=upper,
-            insideValue=1, outsideValue=outside)
+            insideValue=inside, outsideValue=outside)
 
         out = self._get_or_create_output('volume_out',
                                          node.GetName() + '_thresh')
