@@ -115,6 +115,24 @@ class Executor:
             else:
                 inputs[port_name] = None
 
+        # Wire up ModifiedEvent observers on the MRML nodes that ARE
+        # the current inputs.  If any of them gets modified later (by
+        # any source, in-graph or out), our debounced callback marks
+        # this node dirty so the user knows to re-execute.
+        try:
+            node_data._refresh_input_observers(node_item)
+        except Exception:
+            import traceback; traceback.print_exc()
+
+        # Stash the NodeItem so async callbacks (e.g. CLI completion
+        # observers) can find their visual node back.  The reference is
+        # not weak — if the user deletes the node the callback's
+        # node_item.update() is a Qt no-op on a removed item.
+        node_data._executing_node_item = node_item
+
+        # Suppress our own observer callbacks for any Modified events
+        # fired as a side-effect of execute() itself.
+        node_data._self_modified = True
         try:
             result = node_data.execute(inputs)
         except Exception as exc:
@@ -122,6 +140,8 @@ class Executor:
             slicer.util.errorDisplay(
                 f"Node '{node_data.NODE_NAME}' raised an error:\n{exc}")
             return
+        finally:
+            node_data._self_modified = False
 
         # Store outputs in cache and mark clean
         node_data._cache.update(result or {})

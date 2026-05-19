@@ -124,15 +124,31 @@ class NodeItem(QGraphicsObject):
         painter.setBrush(QBrush())
         painter.drawRoundedRect(body_rect, NODE_CORNER_RADIUS, NODE_CORNER_RADIUS)
 
-        # --- Dirty indicator ---
-        if self.node_data.is_dirty:
+        # --- Dirty / computing indicator ---
+        # An async-pending node trumps "dirty" — show blue with an ellipsis
+        # so the user knows work is in flight. Dirty shows orange.
+        async_pending = bool(getattr(self.node_data, '_async_pending', False))
+        if async_pending or self.node_data.is_dirty:
             dirty_r = 5
-            painter.setBrush(QBrush(QColor(*NODE_DIRTY_COLOR)))
+            if async_pending:
+                indicator_color = QColor(60, 160, 220)   # blue
+                indicator_label = "…"
+            else:
+                indicator_color = QColor(*NODE_DIRTY_COLOR)
+                indicator_label = ""
+            cx = NODE_WIDTH - dirty_r - 6
+            cy = NODE_TITLE_HEIGHT + self._body_h / 2
+            painter.setBrush(QBrush(indicator_color))
             painter.setPen(QPen(Qt.NoPen))
-            painter.drawEllipse(
-                QPointF(NODE_WIDTH - dirty_r - 6,
-                        NODE_TITLE_HEIGHT + self._body_h / 2),
-                dirty_r, dirty_r)
+            painter.drawEllipse(QPointF(cx, cy), dirty_r, dirty_r)
+            if indicator_label:
+                font_ind = QFont("Arial", 7, QFont.Bold)
+                painter.setFont(font_ind)
+                painter.setPen(QColor(255, 255, 255))
+                painter.drawText(
+                    QRectF(cx - dirty_r, cy - dirty_r,
+                           dirty_r * 2, dirty_r * 2),
+                    Qt.AlignCenter, indicator_label)
 
         # --- Viewer-slot badge ---
         if self._viewer_slot is not None:

@@ -63,9 +63,69 @@ class RegistrationNode(SlicerBaseNode):
             'initializeTransformMode': init_mode,
             'samplingPercentage':    sampling,
         }
-        slicer.cli.runSync(slicer.modules.brainsfit, None, params)
+
+        # Cancel any previous in-flight run (e.g. user re-pressed 1
+        # before the last registration finished) so we don't end up
+        # with two BRAINSFit processes writing to the same nodes.
+        prev_cli = getattr(self, '_async_cli_node', None)
+        if prev_cli is not None:
+            try:
+                prev_cli.Cancel()
+            except Exception:
+                pass
+
+        # Run async.  BRAINSFit can take minutes; with wait_for_completion
+        # =False the canvas stays interactive.  Output nodes exist now and
+        # are empty / stale until the CLI finishes; downstream observers
+        # added by Phase B.1 will see their ModifiedEvent and mark
+        # downstream nodes dirty automatically when the data arrives.
+        self._async_pending = True
+        cli_node = slicer.cli.run(
+            slicer.modules.brainsfit, None, params,
+            wait_for_completion=False)
+        self._async_cli_node = cli_node
+
+        if cli_node is not None:
+            # The CLI node itself is a transient MRML node; keep it out
+            # of .mrb saves and group it with the rest of the graph's
+            # auto-created nodes.
+            _mark_ephemeral(cli_node)
+            node_item = getattr(self, '_executing_node_item', None)
+            cli_node.AddObserver(
+                slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent,
+                lambda caller, event, ni=node_item:
+                    self._on_cli_status_changed(caller, ni))
 
         return {'registered_out': reg_vol, 'transform_out': xfm}
+
+    def _on_cli_status_changed(self, cli_node, node_item):
+        """Observer fired whenever the BRAINSFit CLI changes status.
+        Flip _async_pending off on terminal statuses and repaint."""
+        try:
+            status = cli_node.GetStatus()
+        except Exception:
+            return
+        terminal = (cli_node.Completed,
+                    cli_node.CompletedWithErrors,
+                    cli_node.Cancelled)
+        if status not in terminal:
+            return  # still running
+        self._async_pending = False
+        self._async_cli_node = None
+        # Repaint the graph node so the computing badge clears
+        if node_item is not None:
+            try:
+                node_item.update()
+            except Exception:
+                pass
+        # Surface CLI errors to the user
+        if status == cli_node.CompletedWithErrors:
+            try:
+                slicer.util.errorDisplay(
+                    "Registration: BRAINSFit completed with errors. "
+                    "Check the Error Log for details.")
+            except Exception:
+                pass
 
     def route_to_viewer(self):
         node = self._cache.get('registered_out')
