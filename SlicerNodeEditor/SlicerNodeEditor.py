@@ -40,7 +40,7 @@ class SlicerNodeEditor(ScriptedLoadableModule):
             "• Double-click a node — load its settings in the left panel\n"
             "• Ctrl+C/X/V — copy / cut / paste\n"
             "• Ctrl+Z/Y   — undo / redo\n"
-            "• F       — frame nodes in view\n"
+            "• F       — fullscreen the selected node's output, or frame canvas if nothing is selected\n"
             "• D       — disable / enable selected nodes (passthrough)\n"
             "• Del     — delete selected nodes\n"
             "• Scroll — zoom  |  Middle-drag — pan"

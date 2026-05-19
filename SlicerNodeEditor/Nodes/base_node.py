@@ -275,6 +275,31 @@ class SlicerBaseNode:
         """
         pass
 
+    def route_fullscreen(self):
+        """
+        Apply this node's cached output to Slicer's viewer in a
+        single-pane fullscreen layout, hiding the auxiliary views.
+
+        Default implementation: walk our OUTPUT_PORTS, find a volume- or
+        labelmap-typed one, and route it to the single red slice view
+        via _route_volume_fullscreen. Override when the node's output
+        is best shown another way (e.g. VolumeRendering uses pure 3D).
+
+        Falls back to route_to_viewer when no volume output is available.
+        """
+        for port_name, _label, dtype in self.OUTPUT_PORTS:
+            if dtype in ('volume', 'labelmap'):
+                vol = self._cache.get(port_name)
+                if vol is not None:
+                    try:
+                        from .io_nodes import _route_volume_fullscreen
+                        _route_volume_fullscreen(vol)
+                        return
+                    except Exception:
+                        break
+        # No suitable volume output; fall back to the normal route
+        self.route_to_viewer()
+
     # ------------------------------------------------------------------
     # Custom properties widget (optional)
     # ------------------------------------------------------------------

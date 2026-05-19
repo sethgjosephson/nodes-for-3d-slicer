@@ -99,7 +99,7 @@ Slicer's bundled PythonQt and SimpleITK only.
 | `Ctrl+C` / `X` / `V` | Copy / cut / paste, preserves the selected subgraph including internal edges |
 | `Ctrl+Z` / `Y` | Undo / redo |
 | `Del` / `Backspace` | Delete selected nodes. Middle-of-pipe deletions splice the pipe back together. |
-| `F` | Frame all (or selected) nodes |
+| `F` | With a node selected: route its output to a single-pane fullscreen layout (3D-only for VR/Models, single slice for volume outputs). With nothing selected: frame all nodes in the canvas viewport. |
 | `D` | Disable / enable selected nodes (Nuke-style passthrough). Disabled nodes skip their work and forward their input straight to their output. |
 | `Esc` | Deselect |
 | Scroll wheel | Zoom |

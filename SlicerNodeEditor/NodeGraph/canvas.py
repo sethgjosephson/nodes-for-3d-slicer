@@ -238,9 +238,16 @@ class NodeEditorCanvas(QGraphicsView):
             self._delete_selected()
             return
 
-        # --- Frame ---
+        # --- Frame canvas / Fullscreen selected output ---
+        # F on a selected node routes its output to a single-pane
+        # viewer (3D-only for VR, single slice for volumes, etc).
+        # F with no selection frames the canvas viewport to fit nodes.
         if key == Qt.Key_F:
-            self.frame_selected()
+            sel = self._selected_node()
+            if sel is not None:
+                self._fullscreen_selected(sel)
+            else:
+                self.frame_selected()
             return
 
         # --- Deselect ---
@@ -320,6 +327,25 @@ class NodeEditorCanvas(QGraphicsView):
             return
         self._scene.capture_undo()
         self._delete_with_splice(selected)
+
+    def _fullscreen_selected(self, node_item):
+        """Make sure the chain feeding this node is up-to-date, then
+        ask the node to route its output to a single-pane fullscreen
+        layout (3D-only for VR, single slice for volume outputs, etc)."""
+        if self._executor is not None:
+            try:
+                self._executor.execute_up_to(node_item)
+            except Exception as exc:
+                import slicer
+                slicer.util.errorDisplay(
+                    f"Execution failed before fullscreen routing:\n{exc}")
+                return
+        try:
+            node_item.node_data.route_fullscreen()
+        except Exception as exc:
+            import slicer
+            slicer.util.errorDisplay(
+                f"Fullscreen routing failed:\n{exc}")
 
     def _toggle_disable_selected(self):
         """Toggle the Nuke-style 'disabled' flag on every selected node.
