@@ -250,10 +250,14 @@ class NodeItem(QGraphicsObject):
         return list(self._output_ports.values())
 
     def set_property(self, name, value):
-        """Called by the properties panel; propagates dirty downstream."""
+        """Called by the properties panel; propagates dirty downstream and
+        kicks off the debounced auto-rerun on the active viewer slot."""
         self.node_data.set_property(name, value)
-        if self.scene():
-            self.scene().mark_dirty_from(self)
+        scene = self.scene()
+        if scene is not None:
+            scene.mark_dirty_from(self)
+            if hasattr(scene, 'notify_property_changed'):
+                scene.notify_property_changed(self)
         self.update()
 
     def set_viewer_slot(self, slot):

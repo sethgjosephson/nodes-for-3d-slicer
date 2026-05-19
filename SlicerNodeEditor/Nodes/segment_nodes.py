@@ -8,6 +8,9 @@ from .base_node import (SlicerBaseNode, LinkedModuleNode,
 class SegmentationNode(SlicerBaseNode):
     NODE_NAME    = "Segmentation"
     CATEGORY     = "Segmentation"
+    # Segmentation effects (especially via Segment Editor) are interactive
+    # and not safe to re-fire on every slider tick.
+    AUTO_EXECUTE = False
 
     INPUT_PORTS  = [("volume_in", "Volume", VOLUME)]
     OUTPUT_PORTS = [("seg_out",   "Segmentation", SEGMENTATION)]
@@ -95,6 +98,9 @@ class SegmentationNode(SlicerBaseNode):
 # ---------------------------------------------------------------------------
 
 class SegmentEditorNode(LinkedModuleNode):
+    # Paint-mode editing is the canonical operation here; auto-rerunning
+    # would clobber the user's in-progress strokes.
+    AUTO_EXECUTE = False
     """
     Interactive segmentation via Slicer's Segment Editor module.
 

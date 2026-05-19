@@ -53,6 +53,7 @@ class NodeEditorScene(QGraphicsScene):
         self._drag_edge        = None        # temp EdgeItem during drag
         self._drag_source_port = None        # PortItem where drag started
         self._selection_listener = None      # plain Python callback (reliable)
+        self._property_change_listener = None  # canvas auto-rerun hook
         self._drop_highlight_edge = None     # edge currently highlighted for splice
 
         # Undo/redo state (snapshot-based)
@@ -111,6 +112,19 @@ class NodeEditorScene(QGraphicsScene):
     def set_selection_listener(self, callback):
         """Register a plain Python callback for node-selection events."""
         self._selection_listener = callback
+
+    def set_property_change_listener(self, callback):
+        """Register a callback fired when any node's property changes,
+        so the canvas can schedule a debounced auto-rerun."""
+        self._property_change_listener = callback
+
+    def notify_property_changed(self, node_item):
+        """Called by NodeItem.set_property after dirty-propagation."""
+        if self._property_change_listener is not None:
+            try:
+                self._property_change_listener(node_item)
+            except Exception:
+                import traceback; traceback.print_exc()
 
     def notify_node_selected(self, node_item):
         """Called by NodeItem.mousePressEvent (direct call, not signal)."""

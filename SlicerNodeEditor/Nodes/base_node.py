@@ -186,6 +186,16 @@ class SlicerBaseNode:
     # in the Node Editor's own properties panel.
     LINKED_MODULE = None
 
+    # If True (default), this node participates in the "auto-rerun on
+    # property change" loop: editing any node's parameter schedules a
+    # debounced re-execution of whichever node is currently in the active
+    # viewer slot, walking back through dirty ancestors as usual.
+    # Set False on expensive operations (long-running CLI, file load,
+    # interactive editing) — they still re-run when the user presses 1
+    # explicitly, but the auto loop will refuse to fire if it would
+    # require running them.
+    AUTO_EXECUTE = True
+
     # ------------------------------------------------------------------
 
     def __init__(self):

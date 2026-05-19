@@ -120,6 +120,9 @@ class SampleDataNode(SlicerBaseNode):
 class LoadVolumeNode(SlicerBaseNode):
     NODE_NAME    = "Load Volume"
     CATEGORY     = "I/O"
+    # Auto-rerunning while the user is mid-edit on a file path would
+    # constantly try to load invalid partial paths; keep this manual.
+    AUTO_EXECUTE = False
 
     INPUT_PORTS  = []
     OUTPUT_PORTS = [("volume_out", "Volume", VOLUME)]
