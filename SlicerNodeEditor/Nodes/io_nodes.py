@@ -230,6 +230,19 @@ def _route_volume_to_slices(node):
     slicer.util.resetSliceViews()
 
 
+def _route_volume_fullscreen(node):
+    """Single-pane fullscreen view of a volume on the red slice viewer.
+    Used by `route_fullscreen()` when the user presses F on a node
+    whose output is a scalar volume / labelmap."""
+    _scope_vr_to_volume(node)
+    lm = slicer.app.layoutManager()
+    lm.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutOneUpRedSliceView)
+    cn = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceCompositeNodeRed')
+    if cn is not None:
+        cn.SetBackgroundVolumeID(node.GetID())
+    slicer.util.resetSliceViews()
+
+
 # ---------------------------------------------------------------------------
 # Volumes — linked to Slicer's "Volumes" module (window/level, contrast, etc.)
 # ---------------------------------------------------------------------------

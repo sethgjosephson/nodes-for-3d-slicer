@@ -45,7 +45,11 @@ class VolumeRenderingNode(LinkedModuleNode):
         return {}
 
     def route_to_viewer(self):
-        """Show only THIS volume's rendering; hide all other VR displays."""
+        """Show this volume in 3D rendering AND keep slices populated.
+        Uses the Conventional layout (3 slices + 3D pane) so the user
+        sees both the rendering and the underlying anatomy.
+        Other volumes' VR displays are hidden so only ours is visible
+        in the 3D pane."""
         vol = self._cache.get('volume_in')
         target_id = None
         if vol is not None:
@@ -53,14 +57,31 @@ class VolumeRenderingNode(LinkedModuleNode):
             target_dn = vr_logic.GetFirstVolumeRenderingDisplayNode(vol)
             target_id = target_dn.GetID() if target_dn is not None else None
 
+        # Exclusive VR visibility
         n = slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLVolumeRenderingDisplayNode')
         for i in range(n):
             dn = slicer.mrmlScene.GetNthNodeByClass(i, 'vtkMRMLVolumeRenderingDisplayNode')
             if dn is not None:
                 dn.SetVisibility(dn.GetID() == target_id)
 
-        lm = slicer.app.layoutManager()
-        lm.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutOneUp3DView)
+        # Route the input volume to the slice viewers (Conventional layout)
+        if vol is not None:
+            from .io_nodes import _route_volume_to_slices
+            _route_volume_to_slices(vol)
+        else:
+            slicer.app.layoutManager().setLayout(
+                slicer.vtkMRMLLayoutNode.SlicerLayoutOneUp3DView)
+
+    def route_fullscreen(self):
+        """F-key: pure 3D, no slice context."""
+        vol = self._cache.get('volume_in')
+        if vol is not None:
+            vr_logic = slicer.modules.volumerendering.logic()
+            target_dn = vr_logic.GetFirstVolumeRenderingDisplayNode(vol)
+            if target_dn is not None:
+                target_dn.SetVisibility(True)
+        slicer.app.layoutManager().setLayout(
+            slicer.vtkMRMLLayoutNode.SlicerLayoutOneUp3DView)
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +100,19 @@ class ModelsNode(LinkedModuleNode):
     INPUT_SETTERS = {'model_in': ('setMRMLModelNode', 'setMRMLNode')}
 
     def route_to_viewer(self):
-        """Hide other models; show only this one in the 3D view."""
+        """Hide other models; show only this one. Use Conventional layout
+        so slice context is preserved."""
+        self._set_exclusive_visibility()
+        slicer.app.layoutManager().setLayout(
+            slicer.vtkMRMLLayoutNode.SlicerLayoutConventionalView)
+
+    def route_fullscreen(self):
+        """F-key: pure 3D, no slice context."""
+        self._set_exclusive_visibility()
+        slicer.app.layoutManager().setLayout(
+            slicer.vtkMRMLLayoutNode.SlicerLayoutOneUp3DView)
+
+    def _set_exclusive_visibility(self):
         target = self._cache.get('model_in')
         target_id = target.GetID() if target is not None else None
         n = slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLModelNode')
@@ -94,5 +127,3 @@ class ModelsNode(LinkedModuleNode):
                 dn.SetVisibility(m.GetID() == target_id)
             except Exception:
                 pass
-        lm = slicer.app.layoutManager()
-        lm.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutOneUp3DView)
