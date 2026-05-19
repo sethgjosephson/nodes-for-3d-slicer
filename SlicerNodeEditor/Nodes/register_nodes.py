@@ -1,7 +1,8 @@
 """Registration nodes."""
 
 import slicer
-from .base_node import SlicerBaseNode, LinkedModuleNode, VOLUME, TRANSFORM
+from .base_node import (SlicerBaseNode, LinkedModuleNode, VOLUME, TRANSFORM,
+                         _mark_ephemeral)
 
 
 class RegistrationNode(SlicerBaseNode):
@@ -44,12 +45,14 @@ class RegistrationNode(SlicerBaseNode):
         if xfm is None or not slicer.mrmlScene.GetNodeByID(xfm.GetID()):
             xfm = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
             xfm.SetName(f"{moving.GetName()}_to_{fixed.GetName()}_xfm")
+            _mark_ephemeral(xfm)
 
         reg_vol = self._cache.get('registered_out')
         if reg_vol is None or not slicer.mrmlScene.GetNodeByID(reg_vol.GetID()):
             reg_vol = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode')
             reg_vol.SetName(f"{moving.GetName()}_registered")
             reg_vol.CreateDefaultDisplayNodes()
+            _mark_ephemeral(reg_vol)
 
         params = {
             'fixedVolume':           fixed,

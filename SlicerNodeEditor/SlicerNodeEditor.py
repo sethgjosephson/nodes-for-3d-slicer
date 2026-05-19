@@ -133,6 +133,17 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         load_btn.connect("clicked()",  self._on_load)
         clear_btn.connect("clicked()", self._on_clear)
 
+        # When the user closes the scene (or opens a different .mrb),
+        # drop every node's cached MRML pointers and mark all nodes
+        # dirty. The graph itself (nodes / edges / positions / props /
+        # undo / clipboard / slots) is a recipe and survives untouched.
+        # Pressing 1 in the new scene will re-cook the data.
+        # StartCloseEvent fires BEFORE nodes are deleted, which is the
+        # right moment to drop references.
+        self.addObserver(slicer.mrmlScene,
+                         slicer.vtkMRMLScene.StartCloseEvent,
+                         self._on_scene_close)
+
     # ------------------------------------------------------------------
     # Properties panel
     # ------------------------------------------------------------------
@@ -318,9 +329,77 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._canvas.node_scene.deserialise(data, self._router)
 
     def _on_clear(self):
-        for ni in list(self._canvas.node_scene.all_node_items()):
-            self._canvas.node_scene.remove_node(ni)
-        self._rebuild_props_panel(None)
+        """Toolbar Clear button: user-initiated, wipe everything."""
+        self._clear_graph()
+
+    def _on_scene_close(self, caller=None, event=None):
+        """
+        The MRML scene is about to be wiped (File > Close Scene, or
+        opening a different .mrb).  The graph itself is a recipe and
+        survives, but every node's cached MRML pointers are about to
+        become dangling.  Drop those caches and mark every node dirty
+        so the next press-1 re-cooks the data from upstream.
+
+        Graph structure, edges, positions, properties, undo / redo
+        stacks, the clipboard, and viewer slot bindings all stay intact
+        (none of them reference MRML by identity).
+        """
+        if self._canvas is None:
+            return
+        scene = self._canvas.node_scene
+        if scene is None:
+            return
+        try:
+            for ni in scene.all_node_items():
+                nd = ni.node_data
+                # Forget every cached MRML pointer
+                try:
+                    nd._cache.clear()
+                except Exception:
+                    pass
+                # SampleDataNode tracks multi-node loads by ID; reset that
+                if hasattr(nd, '_loaded_node_ids'):
+                    nd._loaded_node_ids = []
+                nd.is_dirty = True
+                try:
+                    ni.update()  # repaint to show the dirty indicator
+                except Exception:
+                    pass
+        except Exception:
+            import traceback; traceback.print_exc()
+
+    def _clear_graph(self):
+        """Tear down every node, reset router slots, clear undo / redo /
+        clipboard, and blank the properties panel.  Used by the Clear
+        toolbar button — the explicit "throw it all away" action."""
+        scene = self._canvas.node_scene if self._canvas is not None else None
+        if scene is None:
+            return
+        for ni in list(scene.all_node_items()):
+            scene.remove_node(ni)
+        # Reset viewer slot bindings
+        if self._router is not None:
+            try:
+                self._router._slots = {i: None for i in range(1, 11)}
+            except Exception:
+                pass
+        # Clear undo / redo (everything we'd restore is now stale)
+        try:
+            scene._undo_stack.clear()
+            scene._redo_stack.clear()
+        except Exception:
+            pass
+        # Clear the cross-canvas clipboard too
+        try:
+            import NodeGraph.canvas as _canvas_mod
+            _canvas_mod._CLIPBOARD = None
+        except Exception:
+            pass
+        # Clear the properties panel
+        try:
+            self._rebuild_props_panel(None)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
 
