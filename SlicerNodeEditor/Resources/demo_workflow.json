@@ -1,5 +1,5 @@
 {
-  "_comment": "Demo workflow loaded by the Demo toolbar button. Three pipelines exercising the most-used node types: SampleData->Threshold->VR (classic chain with a filter), SampleData->VR (multi-VR exclusive-visibility test against the first pipeline), SampleData->GaussianSmooth->Volumes (filter chain feeding a linked-module passthrough).",
+  "_comment": "Demo workflow loaded by the Demo toolbar button. Three pipelines, each terminating in something visually meaningful so press-1 on the bottom node always shows something. Column A: bare loader to VR. Column B: filter into VR (smoothing preserves intensities so VR still renders). Column C: Threshold into Volumes so the binary mask is routed to slice viewer where 0/1 is meaningful.",
 
   "nodes": [
     {
@@ -7,35 +7,35 @@
       "class":   "SampleDataNode",
       "module":  "Nodes.io_nodes",
       "x":       -360,
-      "y":       -260,
+      "y":       -280,
       "props":   {"sample": "MRHead"},
       "slot":    null
     },
     {
       "id":      1,
-      "class":   "ThresholdNode",
-      "module":  "Nodes.filter_nodes",
-      "x":       -360,
-      "y":       -60,
-      "props":   {"lower": 100.0, "upper": 500.0, "outside": 0, "inside": 1},
-      "slot":    null
-    },
-    {
-      "id":      2,
       "class":   "VolumeRenderingNode",
       "module":  "Nodes.viz_nodes",
       "x":       -360,
-      "y":       140,
+      "y":       120,
       "props":   {},
       "slot":    null
     },
     {
-      "id":      3,
+      "id":      2,
       "class":   "SampleDataNode",
       "module":  "Nodes.io_nodes",
       "x":       0,
-      "y":       -260,
+      "y":       -280,
       "props":   {"sample": "CTChest"},
+      "slot":    null
+    },
+    {
+      "id":      3,
+      "class":   "GaussianSmoothNode",
+      "module":  "Nodes.filter_nodes",
+      "x":       0,
+      "y":       -80,
+      "props":   {"sigma": 1.5},
       "slot":    null
     },
     {
@@ -43,7 +43,7 @@
       "class":   "VolumeRenderingNode",
       "module":  "Nodes.viz_nodes",
       "x":       0,
-      "y":       140,
+      "y":       120,
       "props":   {},
       "slot":    null
     },
@@ -52,17 +52,17 @@
       "class":   "SampleDataNode",
       "module":  "Nodes.io_nodes",
       "x":       360,
-      "y":       -260,
+      "y":       -280,
       "props":   {"sample": "MRHead"},
       "slot":    null
     },
     {
       "id":      6,
-      "class":   "GaussianSmoothNode",
+      "class":   "ThresholdNode",
       "module":  "Nodes.filter_nodes",
       "x":       360,
-      "y":       -60,
-      "props":   {"sigma": 1.5},
+      "y":       -80,
+      "props":   {"lower": 50.0, "upper": 180.0, "outside": 0, "inside": 1},
       "slot":    null
     },
     {
@@ -70,7 +70,7 @@
       "class":   "VolumesNode",
       "module":  "Nodes.io_nodes",
       "x":       360,
-      "y":       140,
+      "y":       120,
       "props":   {},
       "slot":    null
     }
@@ -78,7 +78,7 @@
 
   "edges": [
     {"src_node": 0, "src_port": "volume_out", "dst_node": 1, "dst_port": "volume_in"},
-    {"src_node": 1, "src_port": "volume_out", "dst_node": 2, "dst_port": "volume_in"},
+    {"src_node": 2, "src_port": "volume_out", "dst_node": 3, "dst_port": "volume_in"},
     {"src_node": 3, "src_port": "volume_out", "dst_node": 4, "dst_port": "volume_in"},
     {"src_node": 5, "src_port": "volume_out", "dst_node": 6, "dst_port": "volume_in"},
     {"src_node": 6, "src_port": "volume_out", "dst_node": 7, "dst_port": "volume_in"}

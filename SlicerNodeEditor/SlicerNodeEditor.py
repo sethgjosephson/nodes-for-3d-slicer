@@ -60,6 +60,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._dock           = None
         self._props_widget   = None
         self._selected_node  = None
+        self._startup_btn    = None
 
     # ------------------------------------------------------------------
     # Setup
@@ -83,10 +84,20 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             "Load a canned test workflow (three pipelines exercising filters, "
             "linked modules, and multi-VR visibility scoping).")
 
-        for btn in (run_btn, save_btn, load_btn, clear_btn, demo_btn):
+        # Checkable "Default" button: when on, Slicer opens to Node Editor
+        # at next launch (writes "Modules/HomeModule" in QSettings).
+        startup_btn = qt.QPushButton("Default on Launch")
+        startup_btn.setCheckable(True)
+        startup_btn.setToolTip(
+            "If checked, Slicer will launch directly into Node Editor next time.")
+        startup_btn.setChecked(self._is_default_startup_module())
+
+        for btn in (run_btn, save_btn, load_btn, clear_btn, demo_btn,
+                    startup_btn):
             btn.setMaximumHeight(24)
             toolbar_layout.addWidget(btn)
         toolbar_layout.addStretch()
+        self._startup_btn = startup_btn
 
         self.layout.addWidget(toolbar_widget)
 
@@ -137,6 +148,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         load_btn.connect("clicked()",  self._on_load)
         clear_btn.connect("clicked()", self._on_clear)
         demo_btn.connect("clicked()",  self._on_load_demo)
+        startup_btn.connect("toggled(bool)", self._on_toggle_default_startup)
 
         # When the user closes the scene (or opens a different .mrb),
         # drop every node's cached MRML pointers and mark all nodes
@@ -332,6 +344,44 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         with open(path) as f:
             data = json.load(f)
         self._canvas.node_scene.deserialise(data, self._router)
+
+    # ------------------------------------------------------------------
+    # Default-startup-module toggle
+    # ------------------------------------------------------------------
+
+    _STARTUP_SETTING_KEY = 'Modules/HomeModule'
+    _STARTUP_MODULE_NAME = 'SlicerNodeEditor'
+
+    def _is_default_startup_module(self):
+        """True if Slicer is currently configured to open into us."""
+        try:
+            current = slicer.app.userSettings().value(self._STARTUP_SETTING_KEY)
+            return current == self._STARTUP_MODULE_NAME
+        except Exception:
+            return False
+
+    def _on_toggle_default_startup(self, checked):
+        """Toolbar checkbox: write the home-module setting."""
+        try:
+            settings = slicer.app.userSettings()
+            if checked:
+                settings.setValue(self._STARTUP_SETTING_KEY,
+                                  self._STARTUP_MODULE_NAME)
+                slicer.util.showStatusMessage(
+                    "Node Editor will be the startup module next launch.",
+                    3000)
+            else:
+                # Clear our specific value rather than wiping the key
+                # entirely (Slicer falls back to its default if empty).
+                settings.remove(self._STARTUP_SETTING_KEY)
+                slicer.util.showStatusMessage(
+                    "Startup module reverted to Slicer default.", 3000)
+        except Exception as exc:
+            slicer.util.errorDisplay(
+                f"Could not update startup-module setting:\n{exc}")
+            # Roll the checkbox back to match actual state
+            if self._startup_btn is not None:
+                self._startup_btn.setChecked(self._is_default_startup_module())
 
     def _on_load_demo(self):
         """Load the bundled demo workflow so we have a known-good test
