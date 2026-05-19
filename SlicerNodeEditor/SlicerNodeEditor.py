@@ -439,9 +439,15 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     nd._clear_input_observers()
                 except Exception:
                     pass
-                # Forget every cached MRML pointer
+                # Forget every cached MRML pointer (downstream view AND
+                # the "MRML nodes I own" map — both are stale once the
+                # scene is wiped).
                 try:
                     nd._cache.clear()
+                except Exception:
+                    pass
+                try:
+                    nd._owned_outputs.clear()
                 except Exception:
                     pass
                 # SampleDataNode tracks multi-node loads by ID; reset that

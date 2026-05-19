@@ -153,8 +153,9 @@ class Executor:
         # Suppress our own observer callbacks for any Modified events
         # fired as a side-effect of execute() itself.
         node_data._self_modified = True
+        passthrough = bool(getattr(node_data, 'is_disabled', False))
         try:
-            if getattr(node_data, 'is_disabled', False):
+            if passthrough:
                 # Nuke-style passthrough: skip this node's work, forward
                 # the first type-compatible input to each output.
                 result = self._passthrough(node_data, inputs)
@@ -168,7 +169,13 @@ class Executor:
         finally:
             node_data._self_modified = False
 
-        # Store outputs in cache and mark clean
+        # _cache is the downstream-facing view (passthrough writes here too).
         node_data._cache.update(result or {})
+        # _owned_outputs records what THIS node actually produced. Passthrough
+        # must not mirror in - that would let upstream MRML refs sneak into
+        # the "reuse my own output" path and cause re-execution to write
+        # into upstream nodes (the bug behind the double-smoothing).
+        if not passthrough:
+            node_data._owned_outputs.update(result or {})
         node_data.mark_clean()
         node_item.update()   # repaint to remove dirty indicator
