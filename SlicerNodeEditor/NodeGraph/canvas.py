@@ -84,6 +84,17 @@ class NodeEditorCanvas(QGraphicsView):
         self._pan_active       = False
         self._pan_origin       = QPoint(0, 0)
 
+        # Auto-rerun on property change: when ANY node's property changes
+        # we re-cook whichever pipeline is currently routed to the active
+        # viewer slot. Debounced via QTimer so sliders don't trigger one
+        # execution per pixel of drag.
+        self._auto_rerun_timer = None
+        self._auto_rerun_delay = 300  # ms
+        try:
+            self._scene.set_property_change_listener(self._on_property_changed)
+        except Exception:
+            pass
+
         # Capture Tab and other keys (default focus policy doesn't accept Tab)
         self.setFocusPolicy(Qt.StrongFocus)
 
@@ -382,3 +393,55 @@ class NodeEditorCanvas(QGraphicsView):
         """Return the (single) selected NodeItem, or None."""
         sel = self._scene.selected_node_items()
         return sel[0] if sel else None
+
+    # ------------------------------------------------------------------
+    # Auto-rerun on property change (procedural live-update)
+    # ------------------------------------------------------------------
+
+    def _on_property_changed(self, node_item):
+        """Scene tells us a node's property was edited. Debounce-schedule
+        a re-cook of the active viewer slot's pipeline."""
+        self._schedule_auto_rerun()
+
+    def _schedule_auto_rerun(self):
+        """(Re)start the auto-rerun debounce timer."""
+        import qt
+        if self._auto_rerun_timer is None:
+            self._auto_rerun_timer = qt.QTimer()
+            self._auto_rerun_timer.setSingleShot(True)
+            self._auto_rerun_timer.timeout.connect(self._do_auto_rerun)
+        self._auto_rerun_timer.start(self._auto_rerun_delay)
+
+    def _do_auto_rerun(self):
+        """Re-execute the active viewer slot's pipeline IF every dirty
+        ancestor allows it (AUTO_EXECUTE is True and not async-pending)."""
+        if self._router is None:
+            return
+        slot = self._router._active
+        target = self._router.get_slot_node(slot)
+        if target is None:
+            return  # no active viewer to update
+        if not self._can_auto_run(target):
+            return  # expensive ancestor in the chain; wait for manual press-1
+        try:
+            self._router.activate(slot)
+        except Exception:
+            import traceback; traceback.print_exc()
+
+    def _can_auto_run(self, target_node_item):
+        """Walk dirty ancestors of `target`; return False if any node in
+        the chain has opted out of auto-execution (AUTO_EXECUTE=False)
+        or is currently async-pending."""
+        if self._executor is None:
+            return False
+        try:
+            ancestors = self._executor._ancestors_including(target_node_item)
+        except Exception:
+            return False
+        for ni in ancestors:
+            nd = ni.node_data
+            if getattr(nd, '_async_pending', False):
+                return False
+            if nd.is_dirty and not getattr(nd, 'AUTO_EXECUTE', True):
+                return False
+        return True

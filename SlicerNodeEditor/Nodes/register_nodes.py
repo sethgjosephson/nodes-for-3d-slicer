@@ -8,6 +8,8 @@ from .base_node import (SlicerBaseNode, LinkedModuleNode, VOLUME, TRANSFORM,
 class RegistrationNode(SlicerBaseNode):
     NODE_NAME    = "Registration"
     CATEGORY     = "Registration"
+    # BRAINSFit runs for minutes; keep it out of the auto-rerun loop.
+    AUTO_EXECUTE = False
 
     INPUT_PORTS  = [
         ("fixed_in",  "Fixed Volume",  VOLUME),
