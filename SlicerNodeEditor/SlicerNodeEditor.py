@@ -58,11 +58,17 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def __init__(self, parent=None):
         ScriptedLoadableModuleWidget.__init__(self, parent)
         VTKObservationMixin.__init__(self)
-        self._canvas         = None
-        self._dock           = None
-        self._props_widget   = None
-        self._selected_node  = None
-        self._startup_btn    = None
+        self._canvas          = None
+        self._dock            = None
+        self._props_widget    = None
+        self._selected_node   = None
+        self._startup_btn     = None
+        # Phase D: .mrb-embedded graph sync
+        self._logic           = None    # SlicerNodeEditorLogic; lazy
+        self._parameter_node  = None    # vtkMRMLScriptedModuleNode singleton
+        self._scene_closing   = False   # set by StartClose, read by EndImport
+        self._loading_graph   = False   # suppress mutation listener during deserialise
+        self._sync_timer      = None    # debounced mutation -> parameter node write
 
     # ------------------------------------------------------------------
     # Setup
@@ -162,6 +168,17 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.addObserver(slicer.mrmlScene,
                          slicer.vtkMRMLScene.StartCloseEvent,
                          self._on_scene_close)
+
+        # Phase D: when a .mrb finishes loading AFTER a close (i.e. the
+        # user did Open Scene rather than Add Data), look for our
+        # parameter node and rebuild the canvas from its graph_json.
+        self.addObserver(slicer.mrmlScene,
+                         slicer.vtkMRMLScene.EndImportEvent,
+                         self._on_scene_imported)
+
+        # Phase D: sync the graph into a vtkMRMLScriptedModuleNode
+        # singleton whenever the graph mutates, so .mrb saves carry it.
+        self._canvas.node_scene.set_mutation_listener(self._on_graph_mutated)
 
     # ------------------------------------------------------------------
     # Properties panel
@@ -412,6 +429,105 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def _on_clear(self):
         """Toolbar Clear button: user-initiated, wipe everything."""
         self._clear_graph()
+        # An empty graph IS a meaningful state — sync it so the .mrb
+        # doesn't keep a stale serialised graph from before the clear.
+        if self._canvas is not None and self._canvas.node_scene is not None:
+            self._canvas.node_scene.notify_mutation()
+
+    # ------------------------------------------------------------------
+    # Phase D: graph travels in .mrb via a vtkMRMLScriptedModuleNode
+    # singleton.  The standalone Save / Load Graph JSON buttons remain
+    # the canonical persistence path; this side channel is so scene +
+    # graph travel together when the user shares an .mrb file.
+    # ------------------------------------------------------------------
+
+    def _logic_singleton(self):
+        """Lazy-create our ScriptedLoadableModuleLogic; only needed for
+        its `getParameterNode()` which manages the per-module singleton
+        vtkMRMLScriptedModuleNode."""
+        if self._logic is None:
+            self._logic = SlicerNodeEditorLogic()
+        return self._logic
+
+    def _get_or_create_parameter_node(self):
+        """Return the per-module singleton vtkMRMLScriptedModuleNode,
+        creating it on first use.  This node has SaveWithScene(True)
+        by default — it's exactly what we want for .mrb embedding."""
+        if (self._parameter_node is not None
+                and slicer.mrmlScene.GetNodeByID(self._parameter_node.GetID()) is not None):
+            return self._parameter_node
+        try:
+            self._parameter_node = self._logic_singleton().getParameterNode()
+        except Exception as exc:
+            print(f"[NodeEditor] could not create parameter node: {exc}")
+            return None
+        return self._parameter_node
+
+    def _on_graph_mutated(self):
+        """Scene fired its mutation listener.  Debounce-schedule a
+        write of the current serialised graph into the parameter node."""
+        if self._loading_graph:
+            return
+        if self._sync_timer is None:
+            self._sync_timer = qt.QTimer()
+            self._sync_timer.setSingleShot(True)
+            self._sync_timer.timeout.connect(self._do_sync_to_parameter_node)
+        self._sync_timer.start(200)
+
+    def _do_sync_to_parameter_node(self):
+        """Serialise the canvas graph into the parameter node's
+        graph_json field."""
+        if self._canvas is None or self._canvas.node_scene is None:
+            return
+        pn = self._get_or_create_parameter_node()
+        if pn is None:
+            return
+        try:
+            graph_json = json.dumps(self._canvas.node_scene.serialise())
+        except Exception as exc:
+            print(f"[NodeEditor] graph serialise failed: {exc}")
+            return
+        try:
+            pn.SetParameter('graph_json', graph_json)
+        except Exception as exc:
+            print(f"[NodeEditor] writing graph_json failed: {exc}")
+
+    def _on_scene_imported(self, caller=None, event=None):
+        """EndImportEvent.  If this followed a StartCloseEvent (Open
+        Scene rather than Add Data), look for our parameter node and
+        rebuild the canvas from its graph_json."""
+        was_close_then_import = self._scene_closing
+        self._scene_closing = False
+        if not was_close_then_import:
+            return  # Add Data — don't touch the canvas
+
+        pn = self._get_or_create_parameter_node()
+        if pn is None:
+            return
+        try:
+            graph_json = pn.GetParameter('graph_json')
+        except Exception:
+            graph_json = None
+        if not graph_json:
+            return  # No graph in this .mrb; keep current canvas as-is
+
+        try:
+            graph = json.loads(graph_json)
+        except Exception as exc:
+            print(f"[NodeEditor] graph_json parse failed: {exc}")
+            return
+
+        self._loading_graph = True
+        try:
+            # Wipe the canvas (including router slots, undo, clipboard)
+            self._clear_graph()
+            self._canvas.node_scene.deserialise(graph, self._router)
+        except Exception as exc:
+            import traceback; traceback.print_exc()
+            slicer.util.errorDisplay(
+                f"Could not restore graph from this scene:\n{exc}")
+        finally:
+            self._loading_graph = False
 
     def _on_scene_close(self, caller=None, event=None):
         """
@@ -425,6 +541,11 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         stacks, the clipboard, and viewer slot bindings all stay intact
         (none of them reference MRML by identity).
         """
+        # Phase D: remember this is a close-then-import sequence and
+        # drop the param-node ref, since it's about to be deleted.
+        self._scene_closing = True
+        self._parameter_node = None
+
         if self._canvas is None:
             return
         scene = self._canvas.node_scene
