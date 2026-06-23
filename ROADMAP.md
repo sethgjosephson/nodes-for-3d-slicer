@@ -1,6 +1,6 @@
 # Roadmap: Nodes for 3D Slicer
 
-A Nuke-style node graph extension for 3D Slicer.
+A procedural node-graph extension for 3D Slicer, modeled on visual-effects compositing software.
 
 ## Phase 1 — Foundation ✅
 Core graph infrastructure working inside Slicer.
@@ -34,7 +34,7 @@ Wrap the most-used Slicer tools as nodes.
 - [ ] Slice viewer node (per-slice control)
 
 ## Phase 3 — UX Polish ✅ (mostly)
-Make it feel like Nuke.
+Make it feel like a procedural compositor.
 
 - [x] Typed port colors (volume / labelmap / segmentation / transform / model / markup / table / plot / text / color / any / sequence reserved)
 - [x] Port type validation in connection logic (output→input only, type-compat splice)
@@ -49,7 +49,7 @@ Make it feel like Nuke.
 - [x] Shake-to-disconnect (middle-of-pipe nodes splice OUT cleanly)
 - [x] Delete-with-splice — deleting a middle-of-pipe node reconnects upstream → downstream
 - [x] Multi-slot viewer routing — keys 1-9 and 0 (10 slots), each with a unique badge color
-- [x] **D key**: disable / enable selected nodes (Nuke-style passthrough)
+- [x] **D key**: disable / enable selected nodes (compositor-style passthrough)
 - [x] **F key**: fullscreen the selected node's output (3D-only for VR, single slice for volumes); frames canvas when nothing selected
 - [x] Visibility scoping — viewing one volume hides volume renderings of OTHER volumes only
 - [x] VR / Models routing keeps slice context (Conventional layout, not pure 3D)
@@ -103,7 +103,7 @@ Package and publish.
 | `Tab` | Open node search popup at cursor |
 | `1`–`9`, `0` | Assign selected node to viewer slot 1–10 |
 | `F` | Fullscreen the selected node's output (3D-only for VR/Models, single slice for volume outputs). Frames canvas if nothing selected. |
-| `D` | Disable / enable selected nodes (Nuke-style passthrough) |
+| `D` | Disable / enable selected nodes (compositor-style passthrough) |
 | `Double-click` | Load this node's settings in left panel |
 | `Ctrl+C` / `X` / `V` | Copy / Cut / Paste (preserves disabled state, internal edges, subgraph) |
 | `Ctrl+Z` / `Y` | Undo / Redo (structural changes; moves/props not yet captured) |
@@ -116,7 +116,8 @@ Package and publish.
 
 ## Design philosophy
 
-The node graph IS the project file, like a Nuke `.nk` script. The MRML
+The node graph IS the project file, like a procedural compositor's
+project script. The MRML
 scene is the cooked output cache, regeneratable from the graph. See
 [`docs/design/procedural_workflow_analysis.md`](docs/design/procedural_workflow_analysis.md)
 for the long-form analysis of how every documented Slicer module maps

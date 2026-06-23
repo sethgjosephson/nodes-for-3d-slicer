@@ -105,7 +105,7 @@ class Executor:
         """
         For each OUTPUT_PORT, find the first INPUT_PORT with a
         type-compatible value and forward it through.  Used when a
-        node is disabled (Nuke-style D-key) — the node becomes a
+        node is disabled (compositor-style D-key) — the node becomes a
         no-op, downstream sees the unprocessed upstream data.
         """
         result = {}
@@ -156,7 +156,7 @@ class Executor:
         passthrough = bool(getattr(node_data, 'is_disabled', False))
         try:
             if passthrough:
-                # Nuke-style passthrough: skip this node's work, forward
+                # Compositor-style passthrough: skip this node's work, forward
                 # the first type-compatible input to each output.
                 result = self._passthrough(node_data, inputs)
             else:

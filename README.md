@@ -1,9 +1,10 @@
 # Nodes for 3D Slicer
 
-A Nuke-style **node graph editor** for [3D Slicer](https://slicer.org).
-It replaces the traditional one-module-panel workflow with a procedural,
-node-based pipeline where every Slicer tool is a draggable, connectable
-node, and data flows through typed channels.
+A **procedural node-graph editor** for [3D Slicer](https://slicer.org),
+in the style of visual-effects compositing software. It replaces the
+traditional one-module-panel workflow with a procedural, node-based
+pipeline where every Slicer tool is a draggable, connectable node, and
+data flows through typed channels.
 
 > Status: working prototype. The graph engine, all core editing
 > shortcuts, and ~15 node types are functional in Slicer 5.10
@@ -29,8 +30,8 @@ segmentations, transforms, markups, models). Selecting a node either
 loads its native module's widget in the left panel (so you get the full
 Slicer UI for that operation), or shows a quick-edit form for nodes
 without a backing module. Pressing `1` through `0` routes a node's
-output to one of 10 viewer slots, the same way Nuke routes through its
-viewer slots.
+output to one of 10 viewer slots, the same way a procedural compositor
+routes through viewer slots.
 
 ---
 
@@ -38,7 +39,7 @@ viewer slots.
 
 | Area | What works |
 |---|---|
-| **Engine** | Custom PySide-compatible QGraphicsScene. Nuke-style pan/zoom, bezier pipes, type-checked port connections. |
+| **Engine** | Custom PySide-compatible QGraphicsScene. Compositor-style pan/zoom, bezier pipes, type-checked port connections. |
 | **Editing** | Tab search popup, copy / cut / paste / undo / redo, shake-to-disconnect with splice-out, drag-into-pipe with live highlight. |
 | **Viewer routing** | 10 slots (`1` through `9`, plus `0`), per-slot badge color, visibility scoping (the volume you're viewing keeps its volume rendering; others hide). |
 | **Node library (~15 nodes)** | Sample Data, Load/Save Volume, Volumes, Threshold, Gaussian Smooth, Median Filter, Crop Volume, Markups, Segmentation, Segment Editor, Segmentations, Registration, Apply Transform, Transforms, Volume Rendering, Models, Layout (4-up). |
@@ -100,7 +101,7 @@ Slicer's bundled PythonQt and SimpleITK only.
 | `Ctrl+Z` / `Y` | Undo / redo |
 | `Del` / `Backspace` | Delete selected nodes. Middle-of-pipe deletions splice the pipe back together. |
 | `F` | With a node selected: route its output to a single-pane fullscreen layout (3D-only for VR/Models, single slice for volume outputs). With nothing selected: frame all nodes in the canvas viewport. |
-| `D` | Disable / enable selected nodes (Nuke-style passthrough). Disabled nodes skip their work and forward their input straight to their output. |
+| `D` | Disable / enable selected nodes (compositor-style passthrough). Disabled nodes skip their work and forward their input straight to their output. |
 | `Esc` | Deselect |
 | Scroll wheel | Zoom |
 | Middle-mouse drag | Pan |
@@ -124,7 +125,8 @@ Slicer's bundled PythonQt and SimpleITK only.
   `process_nodes.py`, `layout_node.py`). All extend `SlicerBaseNode`
   or `LinkedModuleNode` from `base_node.py`.
 - **`docs/design/procedural_workflow_analysis.md`** is the long-form
-  design rationale comparing Nuke's evaluation model with Slicer's
+  design rationale comparing the pull-based evaluation model used by
+  procedural VFX compositors with Slicer's
   MRML/module architecture, mapping every documented Slicer module
   onto a procedural-fitness scale, and enumerating 13 edge cases to
   pre-plan for.
