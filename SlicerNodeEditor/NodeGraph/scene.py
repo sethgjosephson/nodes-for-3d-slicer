@@ -54,6 +54,7 @@ class NodeEditorScene(QGraphicsScene):
         self._drag_source_port = None        # PortItem where drag started
         self._selection_listener = None      # plain Python callback (reliable)
         self._property_change_listener = None  # canvas auto-rerun hook
+        self._mutation_listener = None       # widget hook for .mrb parameter-node sync
         self._drop_highlight_edge = None     # edge currently highlighted for splice
 
         # Undo/redo state (snapshot-based)
@@ -123,6 +124,24 @@ class NodeEditorScene(QGraphicsScene):
         if self._property_change_listener is not None:
             try:
                 self._property_change_listener(node_item)
+            except Exception:
+                import traceback; traceback.print_exc()
+        self.notify_mutation()
+
+    def set_mutation_listener(self, callback):
+        """Register a callback fired whenever the graph changes
+        structurally OR a property is edited.  Used by the widget to
+        keep the .mrb parameter-node copy of the graph in sync."""
+        self._mutation_listener = callback
+
+    def notify_mutation(self):
+        """Fire the mutation listener.  Called internally by capture_undo
+        and notify_property_changed; also callable directly by external
+        code that modifies the graph in ways those paths don't cover
+        (e.g. _clear_graph from the widget)."""
+        if self._mutation_listener is not None:
+            try:
+                self._mutation_listener()
             except Exception:
                 import traceback; traceback.print_exc()
 
@@ -495,6 +514,8 @@ class NodeEditorScene(QGraphicsScene):
         if len(self._undo_stack) > self._undo_limit:
             self._undo_stack.pop(0)
         self._redo_stack.clear()
+        # Any captured-for-undo change is by definition a graph mutation
+        self.notify_mutation()
 
     def undo(self):
         if not self._undo_stack:
