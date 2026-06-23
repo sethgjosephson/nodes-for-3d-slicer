@@ -3,9 +3,10 @@
 ## Overview
 
 A 3D Slicer scripted-module extension that replaces the traditional panel-based
-workflow with a Nuke-style node graph. Users drag nodes onto a canvas, wire them
-together, and execute the graph — Slicer's underlying CLI modules and Python API
-do the actual work, completely unchanged.
+workflow with a procedural node graph in the style of visual-effects compositing
+software. Users drag nodes onto a canvas, wire them together, and execute the
+graph — Slicer's underlying CLI modules and Python API do the actual work,
+completely unchanged.
 
 ---
 

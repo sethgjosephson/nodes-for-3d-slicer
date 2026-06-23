@@ -1,5 +1,5 @@
 """
-SlicerNodeEditor — Nuke-style node graph pipeline for 3D Slicer.
+SlicerNodeEditor — node-based procedural workflow pipeline for 3D Slicer.
 
 Module entry point.  The widget embeds the NodeEditorCanvas (PySide2
 QGraphicsView) and a collapsible properties panel that shows the
@@ -34,7 +34,8 @@ class SlicerNodeEditor(ScriptedLoadableModule):
         parent.dependencies = []
         parent.contributors = ["Seth Rivers"]
         parent.helpText = (
-            "A Nuke-style node graph interface for 3D Slicer.\n\n"
+            "A procedural node-graph interface for 3D Slicer, in the "
+            "style of visual-effects compositing software.\n\n"
             "• Tab     — search and place nodes\n"
             "• 1..9, 0 — assign selected node to viewer slot 1..10\n"
             "• Double-click a node — load its settings in the left panel\n"

@@ -210,7 +210,7 @@ class SlicerBaseNode:
         # the same MRML node instead of polluting an upstream input.
         self._owned_outputs = {}
         self.is_dirty   = True    # True → needs re-execution
-        self.is_disabled = False  # Nuke-style D-key: skip execute(), passthrough
+        self.is_disabled = False  # compositor-style D-key: skip execute(), passthrough
 
         # MRML ModifiedEvent observers on the node's CURRENT input MRML
         # nodes.  Maintained by _refresh_input_observers() which the

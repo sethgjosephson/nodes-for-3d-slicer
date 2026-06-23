@@ -3,7 +3,7 @@ ViewerSlotManager — manages the two viewer slots (keys 1 and 2).
 
 Pressing 1 or 2 over a node assigns that node to the slot *and* activates
 it.  Pressing the same key again with nothing hovered recalls the last
-assignment for that slot (toggle-style, like Nuke).
+assignment for that slot (toggle-style, like compositing viewers).
 """
 
 

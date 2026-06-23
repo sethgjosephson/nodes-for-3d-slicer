@@ -255,7 +255,7 @@ class NodeEditorCanvas(QGraphicsView):
             self._scene.clearSelection()
             return
 
-        # --- Disable / enable selected nodes (Nuke-style D) ---
+        # --- Disable / enable selected nodes (compositor-style D) ---
         if key == Qt.Key_D and not ctrl:
             self._toggle_disable_selected()
             return
@@ -348,7 +348,7 @@ class NodeEditorCanvas(QGraphicsView):
                 f"Fullscreen routing failed:\n{exc}")
 
     def _toggle_disable_selected(self):
-        """Toggle the Nuke-style 'disabled' flag on every selected node.
+        """Toggle the compositor-style 'disabled' flag on every selected node.
         Disabled nodes skip their own work and passthrough the first
         type-compatible input to each output, so downstream sees the
         unprocessed upstream data. Useful for quick A/B comparisons."""

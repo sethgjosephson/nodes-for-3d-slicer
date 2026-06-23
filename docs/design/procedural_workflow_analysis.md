@@ -1,16 +1,18 @@
 # Procedural Workflow in Slicer — Roadblocks and Levers
 
-A deep-dive comparing Nuke's evaluation model against Slicer's MRML/module
-architecture, with concrete recommendations for our node graph.
+A deep-dive comparing the pull-based evaluation model used by procedural
+visual-effects compositors against Slicer's MRML/module architecture, with
+concrete recommendations for our node graph.
 
-## 1. Nuke's model in one paragraph
+## 1. The procedural VFX evaluation model in one paragraph
 
-Every Nuke node is a pure-ish function from inputs (image+metadata streams)
-to outputs. Nodes are nodes — there is no separate "scene." Evaluation is
-**lazy and pull-based**: the viewer asks the active node for pixels at a
-given frame; that node asks its inputs; the chain rolls upstream until a
-read node or a cached value satisfies the request. A knob change marks
-the touched node dirty and bumps a hash; any downstream pull recomputes.
+Every node in a procedural visual-effects compositor is a pure-ish
+function from inputs (image+metadata streams) to outputs. Nodes are
+nodes — there is no separate "scene." Evaluation is **lazy and
+pull-based**: the viewer asks the active node for pixels at a given
+frame; that node asks its inputs; the chain rolls upstream until a read
+node or a cached value satisfies the request. A knob change marks the
+touched node dirty and bumps a hash; any downstream pull recomputes.
 Cached results are stored per-node, per-hash. Nothing is "created" in a
 shared global state — every node owns its own output, ephemeral by
 default. **The viewer is just a request; the graph is the canonical truth.**
@@ -27,8 +29,8 @@ node. Many operations are interactive (Segment Editor, Markups), where
 the user's strokes/clicks commit directly into a MRML node. **The MRML
 scene is the canonical truth; modules are imperative editors of it.**
 
-The mismatch is structural: Nuke nodes own their output, Slicer modules
-edit shared scene state.
+The mismatch is structural: procedural compositing-graph nodes own their
+output, Slicer modules edit shared scene state.
 
 ## 3. The three friction categories
 
@@ -76,8 +78,8 @@ the cached MRML node) or creates a `_1` / `_2` clone.
 Smooth, and the user tweaks Threshold's `lower` value 30 times, we end
 up with either 30 stale volumes in the scene or — if we reuse — 30
 intermediate states that overwrote each other with no history. Neither
-is "procedural" in the Nuke sense (each evaluation lives in its own
-cache slot).
+is "procedural" in the visual-effects-compositor sense (each evaluation
+lives in its own cache slot).
 
 ## 4. Primitives in Slicer we can lean on
 
@@ -160,7 +162,8 @@ Wire each graph node's `_run_node` to:
 2. Add a `ModifiedEvent` observer on every output MRML node we created.
 3. Callback marks the graph node dirty.
 
-This gives us true upstream-driven dirty propagation, in the Nuke sense.
+This gives us true upstream-driven dirty propagation, in the
+procedural-graph sense.
 **One caveat:** observer callbacks have to be debounced — a single SITK
 filter run fires many ModifiedEvents on its output during construction.
 Coalesce within ~100 ms via `QTimer.singleShot`.
@@ -195,8 +198,8 @@ Don't fight Segment Editor's paint mode. Model it as:
 - A "Reset" affordance on the node clears the segmentation back to
   empty if the user wants to start over.
 
-This is the Nuke equivalent of a `Paint` node — strokes are persistent
-internal state, but the node still participates in the graph.
+This is the compositing-graph equivalent of a `Paint` node — strokes are
+persistent internal state, but the node still participates in the graph.
 
 ### 6.5 Parameter-node-backed serialization
 
@@ -438,8 +441,8 @@ graph node that creates a Dynamic-Modeler logic node under the hood.
 
 `vtkMRMLSequenceNode` holds a list of typed nodes (volumes, transforms,
 markups, …); `vtkMRMLSequenceBrowserNode` controls "which index is
-currently mirrored into the scene as a regular node." This is Nuke's
-time slider, basically.
+currently mirrored into the scene as a regular node." This is a
+procedural compositor's time slider, basically.
 
 The hard part: when the browser advances, the *active* scalar volume
 node (which our graph nodes have cached pointers to) effectively
