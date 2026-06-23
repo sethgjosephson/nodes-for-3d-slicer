@@ -66,7 +66,6 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Phase D: .mrb-embedded graph sync
         self._logic           = None    # SlicerNodeEditorLogic; lazy
         self._parameter_node  = None    # vtkMRMLScriptedModuleNode singleton
-        self._scene_closing   = False   # set by StartClose, read by EndImport
         self._loading_graph   = False   # suppress mutation listener during deserialise
         self._sync_timer      = None    # debounced mutation -> parameter node write
 
@@ -493,14 +492,39 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             print(f"[NodeEditor] writing graph_json failed: {exc}")
 
     def _on_scene_imported(self, caller=None, event=None):
-        """EndImportEvent.  If this followed a StartCloseEvent (Open
-        Scene rather than Add Data), look for our parameter node and
-        rebuild the canvas from its graph_json."""
-        was_close_then_import = self._scene_closing
-        self._scene_closing = False
-        if not was_close_then_import:
-            return  # Add Data — don't touch the canvas
+        """EndImportEvent. Fires after any scene import (Add Data with
+        an .mrb is the common case; modern Slicer has no separate
+        Open Scene that does close-then-import).
 
+        Strategy: look up the parameter node singleton via
+        getParameterNode(). If it carries a graph_json that doesn't
+        match the canvas we currently have, restore from it.
+
+        Edge cases:
+        - First flush the debounced sync timer so the parameter node
+          reflects the CURRENT canvas (not a stale ~200 ms snapshot).
+          Otherwise, mid-debounce imports look like a divergence.
+        - Capture undo BEFORE replacing so the user can Ctrl+Z back
+          to whatever they had on the canvas pre-import.
+        - Do NOT call _clear_graph: that wipes the undo stack, defeating
+          the Ctrl+Z recovery. Manually remove items + reset slots so
+          undo / clipboard survive.
+        """
+        if self._loading_graph:
+            return
+
+        # Flush any pending mutation -> param-node write first, so the
+        # comparison below uses an up-to-date param node value.
+        if self._sync_timer is not None and self._sync_timer.isActive():
+            try:
+                self._sync_timer.stop()
+                self._do_sync_to_parameter_node()
+            except Exception:
+                pass
+
+        # Re-fetch the param node; the import may have swapped which
+        # instance is the singleton.
+        self._parameter_node = None
         pn = self._get_or_create_parameter_node()
         if pn is None:
             return
@@ -509,25 +533,64 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         except Exception:
             graph_json = None
         if not graph_json:
-            return  # No graph in this .mrb; keep current canvas as-is
+            return  # imported scene has no graph payload; leave canvas alone
+
+        # Compare normalised JSON so we don't restore over an identical graph
+        try:
+            current = json.dumps(self._canvas.node_scene.serialise(),
+                                  sort_keys=True)
+        except Exception:
+            current = ''
+        try:
+            imported = json.dumps(json.loads(graph_json), sort_keys=True)
+        except Exception:
+            return  # bad payload
+        if imported == current:
+            return
+
+        # Snapshot the current canvas so Ctrl+Z reverts the auto-restore
+        try:
+            self._canvas.node_scene.capture_undo()
+        except Exception:
+            pass
 
         try:
             graph = json.loads(graph_json)
-        except Exception as exc:
-            print(f"[NodeEditor] graph_json parse failed: {exc}")
+        except Exception:
             return
 
         self._loading_graph = True
         try:
-            # Wipe the canvas (including router slots, undo, clipboard)
-            self._clear_graph()
-            self._canvas.node_scene.deserialise(graph, self._router)
+            scene = self._canvas.node_scene
+            # Manual teardown that preserves undo and clipboard
+            for ni in list(scene.all_node_items()):
+                if self._router is not None:
+                    try: self._router.clear_node(ni)
+                    except Exception: pass
+                scene.remove_node(ni)
+            if self._router is not None:
+                try:
+                    self._router._slots = {i: None for i in range(1, 11)}
+                except Exception:
+                    pass
+            scene.deserialise(graph, self._router)
+            try:
+                self._rebuild_props_panel(None)
+            except Exception:
+                pass
         except Exception as exc:
             import traceback; traceback.print_exc()
             slicer.util.errorDisplay(
                 f"Could not restore graph from this scene:\n{exc}")
         finally:
             self._loading_graph = False
+
+        try:
+            slicer.util.showStatusMessage(
+                "Restored node graph from imported scene. Ctrl+Z to revert.",
+                5000)
+        except Exception:
+            pass
 
     def _on_scene_close(self, caller=None, event=None):
         """
@@ -541,9 +604,9 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         stacks, the clipboard, and viewer slot bindings all stay intact
         (none of them reference MRML by identity).
         """
-        # Phase D: remember this is a close-then-import sequence and
-        # drop the param-node ref, since it's about to be deleted.
-        self._scene_closing = True
+        # Phase D: drop the param-node ref since it's about to be
+        # deleted by the close. We'll re-acquire it lazily on the next
+        # sync or import.
         self._parameter_node = None
 
         if self._canvas is None:
