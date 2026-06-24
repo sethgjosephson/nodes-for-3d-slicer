@@ -40,3 +40,6 @@ docs/slicer_api_cache/
 
 # Logs
 *.log
+
+# Local Slicer test scenes / data (not for the repo)
+TestFiles/
