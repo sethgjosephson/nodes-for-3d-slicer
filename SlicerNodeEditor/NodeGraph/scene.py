@@ -108,6 +108,7 @@ class NodeEditorScene(QGraphicsScene):
         item = NodeItem(node_data, scene_pos)
         self.addItem(item)
         self._node_items.append(item)
+        self.notify_mutation()
         return item
 
     def set_selection_listener(self, callback):
@@ -170,6 +171,7 @@ class NodeEditorScene(QGraphicsScene):
         self.removeItem(node_item)
         if node_item in self._node_items:
             self._node_items.remove(node_item)
+        self.notify_mutation()
 
     def on_node_moved(self, node_item):
         """Called by NodeItem.itemChange; refreshes attached edges."""
@@ -203,6 +205,7 @@ class NodeEditorScene(QGraphicsScene):
 
         # Downstream of target node is now dirty
         self.mark_dirty_from(target_port.node_item)
+        self.notify_mutation()
         return edge
 
     def remove_edge(self, edge):
@@ -212,6 +215,7 @@ class NodeEditorScene(QGraphicsScene):
         # Target node no longer has upstream data → dirty
         if edge.target_port:
             self.mark_dirty_from(edge.target_port.node_item)
+        self.notify_mutation()
 
     # ------------------------------------------------------------------
     # Edge-drag state machine
