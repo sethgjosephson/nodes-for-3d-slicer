@@ -38,6 +38,9 @@ Slicer-build/
 docs/nuke_reference/
 docs/slicer_api_cache/
 
+# Personal notes / research - local only, not for the public repo
+docs/personal/
+
 # Logs
 *.log
 
