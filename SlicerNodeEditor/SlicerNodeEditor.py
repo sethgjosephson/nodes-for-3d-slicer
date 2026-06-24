@@ -55,6 +55,13 @@ class SlicerNodeEditor(ScriptedLoadableModule):
 
 class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
+    # Attribute stamped on the vtkMRMLScriptedModuleNode that carries the
+    # serialised graph.  We tag + scan by this rather than relying on
+    # getParameterNode()'s singleton, because a singleton node already
+    # present in the session shadows (discards) the imported one during
+    # an .mrb load, so the embedded graph would never arrive.
+    GRAPH_NODE_ATTR = 'NodeEditorGraph'
+
     def __init__(self, parent=None):
         ScriptedLoadableModuleWidget.__init__(self, parent)
         VTKObservationMixin.__init__(self)
@@ -64,8 +71,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._selected_node   = None
         self._startup_btn     = None
         # Phase D: .mrb-embedded graph sync
-        self._logic           = None    # SlicerNodeEditorLogic; lazy
-        self._parameter_node  = None    # vtkMRMLScriptedModuleNode singleton
+        self._parameter_node  = None    # tagged vtkMRMLScriptedModuleNode carrier
         self._loading_graph   = False   # suppress mutation listener during deserialise
         self._sync_timer      = None    # debounced mutation -> parameter node write
 
@@ -440,27 +446,60 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # graph travel together when the user shares an .mrb file.
     # ------------------------------------------------------------------
 
-    def _logic_singleton(self):
-        """Lazy-create our ScriptedLoadableModuleLogic; only needed for
-        its `getParameterNode()` which manages the per-module singleton
-        vtkMRMLScriptedModuleNode."""
-        if self._logic is None:
-            self._logic = SlicerNodeEditorLogic()
-        return self._logic
+    def _find_graph_nodes(self):
+        """Every vtkMRMLScriptedModuleNode in the scene that we tagged as
+        a graph carrier.  Returns a plain Python list (possibly empty)."""
+        found = []
+        try:
+            for n in slicer.util.getNodesByClass('vtkMRMLScriptedModuleNode'):
+                try:
+                    if n is not None and n.GetAttribute(self.GRAPH_NODE_ATTR) == '1':
+                        found.append(n)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return found
 
     def _get_or_create_parameter_node(self):
-        """Return the per-module singleton vtkMRMLScriptedModuleNode,
-        creating it on first use.  This node has SaveWithScene(True)
-        by default — it's exactly what we want for .mrb embedding."""
+        """Return the (single) graph-carrier node, creating it on first
+        use.  NOT a singleton: we find it by our own attribute tag so an
+        imported .mrb's carrier is never shadowed.  SaveWithScene(True)
+        so it travels inside the .mrb."""
         if (self._parameter_node is not None
                 and slicer.mrmlScene.GetNodeByID(self._parameter_node.GetID()) is not None):
             return self._parameter_node
+        existing = self._find_graph_nodes()
+        if existing:
+            self._parameter_node = existing[0]
+            return self._parameter_node
         try:
-            self._parameter_node = self._logic_singleton().getParameterNode()
+            pn = slicer.mrmlScene.AddNewNodeByClass(
+                'vtkMRMLScriptedModuleNode', 'NodeEditorGraph')
+            pn.SetAttribute(self.GRAPH_NODE_ATTR, '1')
+            pn.SetModuleName('SlicerNodeEditor')
+            pn.SetSaveWithScene(True)
+            pn.SetHideFromEditors(True)
+            self._parameter_node = pn
         except Exception as exc:
             print(f"[NodeEditor] could not create parameter node: {exc}")
             return None
         return self._parameter_node
+
+    def _consolidate_graph_nodes(self, graph_nodes, keep):
+        """After an import there may be two carriers (the session's own
+        plus the imported one).  Keep exactly one and drop the rest so
+        they don't accumulate across repeated loads."""
+        if keep is None:
+            keep = graph_nodes[0] if graph_nodes else None
+        self._parameter_node = keep
+        for n in graph_nodes:
+            if n is keep:
+                continue
+            try:
+                slicer.mrmlScene.RemoveNode(n)
+            except Exception:
+                pass
 
     def _on_graph_mutated(self):
         """Scene fired its mutation listener.  Debounce-schedule a
@@ -492,70 +531,86 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             print(f"[NodeEditor] writing graph_json failed: {exc}")
 
     def _on_scene_imported(self, caller=None, event=None):
-        """EndImportEvent. Fires after any scene import (Add Data with
-        an .mrb is the common case; modern Slicer has no separate
-        Open Scene that does close-then-import).
+        """EndImportEvent. Fires after any scene import (Add Data with an
+        .mrb is the common case; modern Slicer has no separate Open Scene
+        that does close-then-import).
 
-        Strategy: look up the parameter node singleton via
-        getParameterNode(). If it carries a graph_json that doesn't
-        match the canvas we currently have, restore from it.
+        Strategy: scan the scene for our tagged graph-carrier node(s).
+        If one carries a graph_json that differs from the current canvas,
+        rebuild the canvas from it.  Then collapse any duplicate carriers
+        down to one.
 
-        Edge cases:
-        - First flush the debounced sync timer so the parameter node
-          reflects the CURRENT canvas (not a stale ~200 ms snapshot).
-          Otherwise, mid-debounce imports look like a divergence.
-        - Capture undo BEFORE replacing so the user can Ctrl+Z back
-          to whatever they had on the canvas pre-import.
-        - Do NOT call _clear_graph: that wipes the undo stack, defeating
-          the Ctrl+Z recovery. Manually remove items + reset slots so
-          undo / clipboard survive.
+        - Cancel (do NOT flush) any pending canvas->carrier write: a
+          flush here would overwrite the freshly imported graph_json with
+          whatever was on the canvas a moment ago.
+        - Capture undo BEFORE replacing so Ctrl+Z reverts the restore.
+        - Manual teardown (not _clear_graph) so undo / clipboard survive.
         """
         if self._loading_graph:
             return
 
-        # Flush any pending mutation -> param-node write first, so the
-        # comparison below uses an up-to-date param node value.
+        # Cancel any pending mutation -> carrier write so it can't clobber
+        # the just-imported payload.  No flush.
         if self._sync_timer is not None and self._sync_timer.isActive():
             try:
                 self._sync_timer.stop()
-                self._do_sync_to_parameter_node()
             except Exception:
                 pass
 
-        # Re-fetch the param node; the import may have swapped which
-        # instance is the singleton.
-        self._parameter_node = None
-        pn = self._get_or_create_parameter_node()
-        if pn is None:
+        graph_nodes = self._find_graph_nodes()
+        if not graph_nodes:
+            try:
+                slicer.util.showStatusMessage(
+                    "Node Editor: imported scene carries no node graph.", 4000)
+            except Exception:
+                pass
             return
-        try:
-            graph_json = pn.GetParameter('graph_json')
-        except Exception:
-            graph_json = None
-        if not graph_json:
-            return  # imported scene has no graph payload; leave canvas alone
 
-        # Compare normalised JSON so we don't restore over an identical graph
+        # Normalised current canvas, to detect no-op restores.
         try:
             current = json.dumps(self._canvas.node_scene.serialise(),
                                   sort_keys=True)
         except Exception:
             current = ''
-        try:
-            imported = json.dumps(json.loads(graph_json), sort_keys=True)
-        except Exception:
-            return  # bad payload
-        if imported == current:
+
+        # Pick a carrier whose payload is non-empty AND differs from the
+        # canvas: that's the imported workflow we want to restore.
+        payload = None
+        source_node = None
+        for n in graph_nodes:
+            try:
+                gj = n.GetParameter('graph_json')
+            except Exception:
+                gj = None
+            if not gj:
+                continue
+            try:
+                norm = json.dumps(json.loads(gj), sort_keys=True)
+            except Exception:
+                continue
+            if norm == current:
+                # Canvas already shows this graph; nothing to restore from
+                # it, but remember it as the carrier to keep.
+                if source_node is None:
+                    source_node = n
+                continue
+            payload = gj
+            source_node = n
+            break
+
+        if payload is None:
+            # Canvas already matches (or all carriers empty): just dedupe.
+            self._consolidate_graph_nodes(graph_nodes, source_node)
             return
 
-        # Snapshot the current canvas so Ctrl+Z reverts the auto-restore
+        # Snapshot current canvas so Ctrl+Z reverts the auto-restore.
         try:
             self._canvas.node_scene.capture_undo()
         except Exception:
             pass
 
         try:
-            graph = json.loads(graph_json)
+            graph = json.loads(payload)
         except Exception:
             return
 
@@ -582,69 +637,63 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             import traceback; traceback.print_exc()
             slicer.util.errorDisplay(
                 f"Could not restore graph from this scene:\n{exc}")
-        finally:
             self._loading_graph = False
+            return
+        self._loading_graph = False
+
+        self._consolidate_graph_nodes(graph_nodes, source_node)
 
         try:
+            n_nodes = len(self._canvas.node_scene.all_node_items())
             slicer.util.showStatusMessage(
-                "Restored node graph from imported scene. Ctrl+Z to revert.",
-                5000)
+                f"Node Editor: restored {n_nodes}-node graph from imported "
+                "scene. Ctrl+Z to revert.", 5000)
         except Exception:
             pass
 
     def _on_scene_close(self, caller=None, event=None):
         """
-        The MRML scene is about to be wiped (File > Close Scene, or
-        opening a different .mrb).  The graph itself is a recipe and
-        survives, but every node's cached MRML pointers are about to
-        become dangling.  Drop those caches and mark every node dirty
-        so the next press-1 re-cooks the data from upstream.
+        The MRML scene is being wiped (File > Close Scene).  Treat this
+        as "start a fresh workflow": clear the canvas entirely.
 
-        Graph structure, edges, positions, properties, undo / redo
-        stacks, the clipboard, and viewer slot bindings all stay intact
-        (none of them reference MRML by identity).
+        A graph belongs to the scene it was built in and travels inside
+        that scene's .mrb (Phase D embeds the serialised graph in a
+        SaveWithScene scripted-module node).  So Close Scene == blank
+        slate; re-open the .mrb to bring its graph back.
         """
-        # Phase D: drop the param-node ref since it's about to be
-        # deleted by the close. We'll re-acquire it lazily on the next
-        # sync or import.
+        # Drop the carrier ref: it's about to be deleted by the close.
         self._parameter_node = None
+
+        # Cancel any pending canvas->carrier write; the canvas is about
+        # to be emptied and we don't want a stale sync firing afterward.
+        if self._sync_timer is not None and self._sync_timer.isActive():
+            try:
+                self._sync_timer.stop()
+            except Exception:
+                pass
 
         if self._canvas is None:
             return
         scene = self._canvas.node_scene
         if scene is None:
             return
+
+        # Suppress the mutation listener while we tear down so node
+        # removals don't schedule a sync into the dying scene.
+        self._loading_graph = True
         try:
+            # Drop input MRML observers BEFORE the underlying nodes get
+            # deleted, so we don't RemoveObserver on dead pointers later.
             for ni in scene.all_node_items():
-                nd = ni.node_data
-                # Drop input MRML observers BEFORE the underlying nodes
-                # get deleted, so we don't try to RemoveObserver on dead
-                # pointers later.
                 try:
-                    nd._clear_input_observers()
+                    ni.node_data._clear_input_observers()
                 except Exception:
                     pass
-                # Forget every cached MRML pointer (downstream view AND
-                # the "MRML nodes I own" map — both are stale once the
-                # scene is wiped).
-                try:
-                    nd._cache.clear()
-                except Exception:
-                    pass
-                try:
-                    nd._owned_outputs.clear()
-                except Exception:
-                    pass
-                # SampleDataNode tracks multi-node loads by ID; reset that
-                if hasattr(nd, '_loaded_node_ids'):
-                    nd._loaded_node_ids = []
-                nd.is_dirty = True
-                try:
-                    ni.update()  # repaint to show the dirty indicator
-                except Exception:
-                    pass
+            self._clear_graph()
         except Exception:
             import traceback; traceback.print_exc()
+        finally:
+            self._loading_graph = False
 
     def _clear_graph(self):
         """Tear down every node, reset router slots, clear undo / redo /
