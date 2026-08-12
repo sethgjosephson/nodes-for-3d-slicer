@@ -34,20 +34,33 @@ class Executor:
         """
         ancestors = self._ancestors_including(target_node_item)
         order     = self._topological_sort(ancestors)
-
-        for node_item in order:
-            if node_item.node_data.is_dirty:
-                self._run_node(node_item)
+        self._run_in_order(order)
 
     def execute_all(self):
         """Execute every dirty node in the scene (full pipeline run)."""
-        try:
-            order = self._topological_sort(set(self._scene.all_node_items()))
-        except RuntimeError:
-            raise
+        order = self._topological_sort(set(self._scene.all_node_items()))
+        self._run_in_order(order)
+
+    def _run_in_order(self, order):
+        """
+        Run dirty nodes in topological order, isolating failures and
+        in-flight async work: when a node errors or reports an async CLI
+        still running, every descendant is skipped for this pass instead
+        of executing against stale or empty inputs. Async nodes resume
+        the walk from their completion callback via
+        _notify_async_complete.
+        """
+        blocked = set()
         for node_item in order:
+            feeders = {e.source_port.node_item
+                       for e in self._scene.get_incoming_edges(node_item)}
+            if feeders & blocked:
+                blocked.add(node_item)
+                continue
             if node_item.node_data.is_dirty:
-                self._run_node(node_item)
+                status = self._run_node(node_item)
+                if status != 'ok':
+                    blocked.add(node_item)
 
     # ------------------------------------------------------------------
     # Internal — graph traversal
@@ -121,7 +134,13 @@ class Executor:
         return result
 
     def _run_node(self, node_item):
-        """Resolve inputs from upstream caches and call node_data.execute()."""
+        """
+        Resolve inputs from upstream caches and call node_data.execute().
+
+        Returns 'ok', 'error', or 'pending' (async CLI still running).
+        Only 'ok' marks the node clean; the other two leave it dirty and
+        make _run_in_order block its descendants for this pass.
+        """
         node_data = node_item.node_data
         inputs    = {}
 
@@ -153,6 +172,7 @@ class Executor:
         # Suppress our own observer callbacks for any Modified events
         # fired as a side-effect of execute() itself.
         node_data._self_modified = True
+        node_data._last_error = None
         passthrough = bool(getattr(node_data, 'is_disabled', False))
         try:
             if passthrough:
@@ -163,9 +183,11 @@ class Executor:
                 result = node_data.execute(inputs)
         except Exception as exc:
             import slicer
+            node_data._last_error = str(exc)
+            node_item.update()   # repaint to show the error badge
             slicer.util.errorDisplay(
                 f"Node '{node_data.NODE_NAME}' raised an error:\n{exc}")
-            return
+            return 'error'
         finally:
             node_data._self_modified = False
 
@@ -177,5 +199,14 @@ class Executor:
         # into upstream nodes (the bug behind the double-smoothing).
         if not passthrough:
             node_data._owned_outputs.update(result or {})
+
+        # Async CLI still running: outputs are placeholders. Stay dirty,
+        # keep descendants blocked; _notify_async_complete finishes the
+        # job when the CLI lands.
+        if getattr(node_data, '_async_pending', False):
+            node_item.update()
+            return 'pending'
+
         node_data.mark_clean()
         node_item.update()   # repaint to remove dirty indicator
+        return 'ok'

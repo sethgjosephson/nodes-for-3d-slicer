@@ -105,7 +105,10 @@ class RegistrationNode(SlicerBaseNode):
 
     def _on_cli_status_changed(self, cli_node, node_item):
         """Observer fired whenever the BRAINSFit CLI changes status.
-        Flip _async_pending off on terminal statuses and repaint."""
+        On terminal statuses, hand off to _notify_async_complete, which
+        marks this node clean, dirties downstream (the executor blocked
+        descendants while we were pending), and re-cooks the active
+        viewer slot."""
         try:
             status = cli_node.GetStatus()
         except Exception:
@@ -115,22 +118,31 @@ class RegistrationNode(SlicerBaseNode):
                     cli_node.Cancelled)
         if status not in terminal:
             return  # still running
-        self._async_pending = False
         self._async_cli_node = None
-        # Repaint the graph node so the computing badge clears
-        if node_item is not None:
-            try:
-                node_item.update()
-            except Exception:
-                pass
-        # Surface CLI errors to the user
-        if status == cli_node.CompletedWithErrors:
-            try:
-                slicer.util.errorDisplay(
-                    "Registration: BRAINSFit completed with errors. "
-                    "Check the Error Log for details.")
-            except Exception:
-                pass
+
+        if status == cli_node.Completed:
+            self._notify_async_complete(True)
+            return
+
+        if status == cli_node.Cancelled:
+            # Superseded by a newer run (cancel-on-rerun) or user cancel:
+            # stay dirty, no error badge, just clear the computing dot.
+            self._async_pending = False
+            if node_item is not None:
+                try:
+                    node_item.update()
+                except Exception:
+                    pass
+            return
+
+        self._notify_async_complete(
+            False, "BRAINSFit completed with errors.")
+        try:
+            slicer.util.errorDisplay(
+                "Registration: BRAINSFit completed with errors. "
+                "Check the Error Log for details.")
+        except Exception:
+            pass
 
     def route_to_viewer(self):
         node = self._cache.get('registered_out')
@@ -162,13 +174,21 @@ class ApplyTransformNode(SlicerBaseNode):
         if xfm is None:
             raise ValueError("Apply Transform: no transform connected.")
 
-        vol.SetAndObserveTransformNodeID(xfm.GetID())
+        # Work on a copy we own. Transforming the upstream volume in
+        # place would leak the transform to every other consumer of that
+        # volume (any branch off the same source), and harden mode would
+        # destructively resample shared data.
+        out = self._get_or_create_output('volume_out',
+                                         vol.GetName() + '_xformed')
+        out.SetName(vol.GetName() + '_xformed')
+        out.CopyContent(vol)
+        out.SetAndObserveTransformNodeID(xfm.GetID())
 
         if self.get_property('harden'):
             import slicer
-            slicer.vtkSlicerTransformLogic().hardenTransform(vol)
+            slicer.vtkSlicerTransformLogic().hardenTransform(out)
 
-        return {'volume_out': vol}
+        return {'volume_out': out}
 
     def route_to_viewer(self):
         node = self._cache.get('volume_out')

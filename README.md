@@ -42,16 +42,16 @@ routes through viewer slots.
 | **Engine** | Custom PySide-compatible QGraphicsScene. Compositor-style pan/zoom, bezier pipes, type-checked port connections. |
 | **Editing** | Tab search popup, copy / cut / paste / undo / redo, shake-to-disconnect with splice-out, drag-into-pipe with live highlight. |
 | **Viewer routing** | 10 slots (`1` through `9`, plus `0`), per-slot badge color, visibility scoping (the volume you're viewing keeps its volume rendering; others hide). |
-| **Node library (~15 nodes)** | Sample Data, Load/Save Volume, Volumes, Threshold, Gaussian Smooth, Median Filter, Crop Volume, Markups, Segmentation, Segment Editor, Segmentations, Registration, Apply Transform, Transforms, Volume Rendering, Models, Layout (4-up). |
+| **Node library (~16 nodes)** | Sample Data, Load/Save Volume, Volumes, Threshold, Gaussian Smooth, Median Filter, Simple Filter (14 curated filters in one node: edge detection, denoising, morphology, intensity, N4 bias correction), Crop Volume, Markups, Segmentation, Segment Editor, Segmentations, Registration, Apply Transform, Transforms, Volume Rendering, Models, Layout (4-up). |
 | **Linked-module pattern** | Double-click any module-linked node and Slicer auto-switches to that module's native widget, pre-pointed at the node's input. |
 | **Persistent dock** | Canvas lives in a bottom dock widget that stays visible while you switch modules. |
-| **MRML hygiene** | (in progress) hiding intermediate output nodes from the Data module so the scene stays clean. |
+| **MRML hygiene** | Every graph-created MRML node is excluded from `.mrb` saves and grouped under a "Node Editor (auto)" folder, so the Data module stays clean. |
+| **Scene integration** | Upstream MRML edits (from any module or script) auto-mark downstream nodes dirty. Long-running CLI nodes execute asynchronously with a computing badge; failures show an error badge and stop their branch. The graph also travels inside `.mrb` saves and restores on import. |
 
 What's not yet built (see the [roadmap](ROADMAP.md) for full detail):
-4D sequence support, `.mrb`-native graph persistence, auto-recompute
-when upstream MRML changes (currently you press `1` to re-evaluate),
-and a generic SimpleFilter node to expose all 18 of Slicer's CLI
-Filtering modules through one configurable node.
+4D sequence support, a cache eviction policy for large-volume chains,
+and surface-model / quantification nodes (Marching Cubes, Segment
+Statistics, Line Profile).
 
 ---
 
@@ -148,29 +148,29 @@ for the deeper architectural plan.
 
 Headline near-term work:
 
-1. **Hide intermediate output nodes** from the Data module so the
-   scene stays clean as graphs run.
-2. **MRML `ModifiedEvent` observers** on inputs so upstream changes
-   from any source (other modules, hand-edits, scripts) auto-mark our
-   downstream nodes dirty.
-3. **Async CLI** for `RegistrationNode` (BRAINSFit) so the canvas
-   stays responsive during multi-minute registrations.
-4. **`.mrb`-native graph serialization** so saving a Slicer scene also
-   saves the graph.
-5. **Generic `SimpleFilterNode`** exposing all ~18 of Slicer's CLI
-   filtering modules through one configurable node.
+1. **Cache eviction policy** so long chains on large volumes don't
+   hold every intermediate in memory.
+2. **Forward-fix for edited data** when upstream geometry changes:
+   offer to transform hand-edited segmentations and markups instead of
+   only warning that they may be misaligned.
+3. **UX items**: backdrop boxes, minimap, undo for moves and property
+   edits, drag a volume from the Data module onto the canvas.
 
 ---
 
 ## Compatibility
 
-- 3D Slicer **5.10** (the version this was developed against).
+- 3D Slicer **5.10** (the version this was developed and tested against).
 - Python **3.12** (Slicer's bundled interpreter).
-- Qt binding: **PythonQt**. PySide2 and PySide6 also supported via the
-  shim if Slicer's build exposes either.
+- Qt binding: **PythonQt** (what Slicer ships). The `_qt.py` shim also
+  contains PySide2/PySide6 import paths, but those are untested; treat
+  PythonQt as the supported binding.
 
-Earlier Slicer 5.x releases that ship PySide2 should work. The
-extension auto-detects the Qt binding at import time.
+For troubleshooting (for example after a Slicer upgrade), set the
+environment variable `SLICER_NODE_EDITOR_DEBUG=1` before launching
+Slicer: normally-silent fallbacks (linked-module setter probing, MRML
+observer wiring) are then logged to the Python console. The module's
+self-tests run from the Reload & Test section of the module panel.
 
 ---
 

@@ -130,13 +130,16 @@ class NodeItem(QGraphicsObject):
         painter.setBrush(QBrush())
         painter.drawRoundedRect(body_rect, NODE_CORNER_RADIUS, NODE_CORNER_RADIUS)
 
-        # --- Dirty / computing indicator ---
-        # An async-pending node trumps "dirty" — show blue with an ellipsis
-        # so the user knows work is in flight. Dirty shows orange.
+        # --- Error / computing / dirty indicator ---
+        # Priority: error (red !) > async-pending (blue …) > dirty (orange).
         async_pending = bool(getattr(self.node_data, '_async_pending', False))
-        if async_pending or self.node_data.is_dirty:
+        has_error     = getattr(self.node_data, '_last_error', None) is not None
+        if has_error or async_pending or self.node_data.is_dirty:
             dirty_r = 5
-            if async_pending:
+            if has_error:
+                indicator_color = QColor(220, 60, 60)    # red
+                indicator_label = "!"
+            elif async_pending:
                 indicator_color = QColor(60, 160, 220)   # blue
                 indicator_label = "…"
             else:
@@ -155,6 +158,24 @@ class NodeItem(QGraphicsObject):
                     QRectF(cx - dirty_r, cy - dirty_r,
                            dirty_r * 2, dirty_r * 2),
                     Qt.AlignCenter, indicator_label)
+
+        # --- Stale-input warning (edit-state nodes only) ---
+        # Amber "!" left of the dirty indicator: an upstream input changed
+        # under hand-edited content, which may now be misaligned with its
+        # source. Cleared when the user double-clicks (opens the editor).
+        if getattr(self.node_data, 'stale_input', False):
+            warn_r = 5
+            cx = NODE_WIDTH - warn_r - 6 - 14
+            cy = NODE_TITLE_HEIGHT + self._body_h / 2
+            painter.setBrush(QBrush(QColor(235, 180, 40)))
+            painter.setPen(QPen(Qt.NoPen))
+            painter.drawEllipse(QPointF(cx, cy), warn_r, warn_r)
+            font_warn = QFont("Arial", 7, QFont.Bold)
+            painter.setFont(font_warn)
+            painter.setPen(QColor(60, 45, 0))
+            painter.drawText(
+                QRectF(cx - warn_r, cy - warn_r, warn_r * 2, warn_r * 2),
+                Qt.AlignCenter, "!")
 
         # --- Viewer-slot badge ---
         if self._viewer_slot is not None:
@@ -194,6 +215,11 @@ class NodeItem(QGraphicsObject):
     def mouseDoubleClickEvent(self, event):
         QGraphicsObject.mouseDoubleClickEvent(self, event)
         if event.button() == Qt.LeftButton and self.scene() is not None:
+            # Opening the editor acknowledges the stale-input warning:
+            # the user is now looking at the possibly-misaligned content.
+            if getattr(self.node_data, 'stale_input', False):
+                self.node_data.stale_input = False
+                self.update()
             scene = self.scene()
             if hasattr(scene, 'notify_node_selected'):
                 scene.notify_node_selected(self)

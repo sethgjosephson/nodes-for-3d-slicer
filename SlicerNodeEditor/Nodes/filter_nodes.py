@@ -15,15 +15,22 @@ class ThresholdNode(SlicerBaseNode):
     OUTPUT_PORTS = [("volume_out", "Volume", VOLUME)]
 
     PROPERTIES = [
+        # 'Keep values' preserves original intensities inside the range
+        # (outside becomes the outside value), so the result still renders
+        # like anatomy in 3D. 'Binary mask' outputs 0/1 for mask-style
+        # downstream steps; note a 0/1 volume is nearly invisible in
+        # volume rendering because opacity ramps span the source range.
+        {'name': 'mode', 'label': 'Mode', 'type': 'enum',
+         'default': 'Keep values',
+         'items': ['Keep values', 'Binary mask']},
         {'name': 'lower', 'label': 'Lower',  'type': 'float',
          'default': 100.0, 'min': -2000.0, 'max': 5000.0},
         {'name': 'upper', 'label': 'Upper',  'type': 'float',
          'default': 500.0, 'min': -2000.0, 'max': 5000.0},
         # outside is a uint8_t in SimpleITK.BinaryThreshold (0-255).
-        # The output is a binary mask; 0 outside is the typical value.
         {'name': 'outside', 'label': 'Outside Value', 'type': 'int',
          'default': 0, 'min': 0, 'max': 255},
-        {'name': 'inside',  'label': 'Inside Value',  'type': 'int',
+        {'name': 'inside',  'label': 'Inside Value (mask only)', 'type': 'int',
          'default': 1, 'min': 0, 'max': 255},
     ]
 
@@ -32,6 +39,7 @@ class ThresholdNode(SlicerBaseNode):
         if node is None:
             raise ValueError("Threshold: no input volume connected.")
 
+        mode    = self.get_property('mode') or 'Keep values'
         lower   = float(self.get_property('lower'))
         upper   = float(self.get_property('upper'))
         # SimpleITK requires inside/outside to be uint8_t — cast defensively
@@ -39,10 +47,15 @@ class ThresholdNode(SlicerBaseNode):
         outside = int(self.get_property('outside'))
         inside  = int(self.get_property('inside'))
 
-        img    = sitkUtils.PullVolumeFromSlicer(node)
-        result = sitk.BinaryThreshold(
-            img, lowerThreshold=lower, upperThreshold=upper,
-            insideValue=inside, outsideValue=outside)
+        img = sitkUtils.PullVolumeFromSlicer(node)
+        if mode == 'Binary mask':
+            result = sitk.BinaryThreshold(
+                img, lowerThreshold=lower, upperThreshold=upper,
+                insideValue=inside, outsideValue=outside)
+        else:
+            result = sitk.Threshold(
+                img, lower=lower, upper=upper,
+                outsideValue=float(outside))
 
         out = self._get_or_create_output('volume_out',
                                          node.GetName() + '_thresh')
