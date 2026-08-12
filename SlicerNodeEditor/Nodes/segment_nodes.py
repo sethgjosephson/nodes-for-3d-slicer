@@ -103,6 +103,10 @@ class SegmentEditorNode(LinkedModuleNode):
     # Paint-mode editing is the canonical operation here; auto-rerunning
     # would clobber the user's in-progress strokes.
     AUTO_EXECUTE = False
+    # Strokes cannot be recomputed from upstream. When an upstream input
+    # changes, show the amber stale-input badge: the hand-edited
+    # segmentation may no longer align with its source volume.
+    EDIT_STATE   = True
     """
     Interactive segmentation via Slicer's Segment Editor module.
 

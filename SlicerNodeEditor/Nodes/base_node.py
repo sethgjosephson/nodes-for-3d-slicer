@@ -13,6 +13,21 @@ that creates MRML nodes, so those nodes end up grouped in the
 """
 
 # ---------------------------------------------------------------------------
+# Debug logging: set SLICER_NODE_EDITOR_DEBUG=1 in the environment to see
+# every swallowed exception and setter miss that is silent by default.
+# ---------------------------------------------------------------------------
+
+import os
+
+_DEBUG = os.environ.get('SLICER_NODE_EDITOR_DEBUG', '') not in ('', '0')
+
+
+def _debug(message):
+    if _DEBUG:
+        print(f"[NodeEditor:debug] {message}")
+
+
+# ---------------------------------------------------------------------------
 # Port data-type string constants
 # ---------------------------------------------------------------------------
 VOLUME        = "volume"
@@ -174,6 +189,17 @@ class SlicerBaseNode:
     CATEGORY     = "Utilities"
     NODE_COLOR   = None           # None → use CAT_COLOR[CATEGORY]
 
+    # Stable identifier written into saved graphs. Defaults to the class
+    # name; set explicitly if a class is ever renamed so old graph files
+    # keep loading. Resolved through Nodes.NODE_TYPE_REGISTRY.
+    NODE_TYPE    = None
+
+    # True for nodes whose canonical content is hand-edited state
+    # (Segment Editor strokes, markup placements). Their output cannot be
+    # recomputed from upstream, so when an upstream input changes the node
+    # shows a stale-input warning badge instead of silently re-cooking.
+    EDIT_STATE   = False
+
     INPUT_PORTS  = []
     OUTPUT_PORTS = []
     PROPERTIES   = []
@@ -211,6 +237,17 @@ class SlicerBaseNode:
         self._owned_outputs = {}
         self.is_dirty   = True    # True → needs re-execution
         self.is_disabled = False  # compositor-style D-key: skip execute(), passthrough
+
+        # Set to the exception text when the last execute() raised; the
+        # canvas paints a red error badge while this is non-None. Cleared
+        # at the start of every run.
+        self._last_error = None
+
+        # EDIT_STATE nodes only: True when an upstream input changed under
+        # hand-edited content, so that content may be misaligned with its
+        # source. Cleared when the user double-clicks the node (opening
+        # its editor counts as acknowledging the warning).
+        self.stale_input = False
 
         # MRML ModifiedEvent observers on the node's CURRENT input MRML
         # nodes.  Maintained by _refresh_input_observers() which the
@@ -359,6 +396,76 @@ class SlicerBaseNode:
         self.is_dirty = False
 
     # ------------------------------------------------------------------
+    # Async completion (call from a CLI completion observer)
+    # ------------------------------------------------------------------
+
+    def _notify_async_complete(self, success=True, error_message=None):
+        """
+        Call from an async node's completion callback once its CLI has
+        finished writing real data into the placeholder outputs.
+
+        On success: marks this node clean, marks everything downstream
+        dirty (the executor blocked descendants while we were pending, so
+        they never saw the placeholder data), repaints, and re-cooks the
+        active viewer slot if this node feeds it.
+
+        On failure: records the error for the canvas badge and leaves the
+        node dirty so the next press-1 retries.
+        """
+        self._async_pending = False
+        node_item = getattr(self, '_executing_node_item', None)
+
+        if not success:
+            self._last_error = error_message or "asynchronous run failed"
+            if node_item is not None:
+                try:
+                    node_item.update()
+                except Exception:
+                    pass
+            return
+
+        self._last_error = None
+        self.mark_clean()
+        if node_item is None:
+            return
+        try:
+            node_item.update()
+        except Exception:
+            pass
+
+        scene = node_item.scene()
+        if scene is None or not hasattr(scene, 'get_outgoing_edges'):
+            return
+
+        # Downstream-only dirty walk (mark_dirty_from would re-dirty us).
+        downstream = set()
+        for edge in scene.get_outgoing_edges(node_item):
+            target = edge.target_port.node_item
+            scene.mark_dirty_from(target)
+            stack = [target]
+            while stack:
+                current = stack.pop()
+                if current in downstream:
+                    continue
+                downstream.add(current)
+                for e in scene.get_outgoing_edges(current):
+                    stack.append(e.target_port.node_item)
+
+        # If the active viewer slot shows us or a descendant, re-cook it
+        # now so the user's view updates without another keypress.
+        router = getattr(scene, '_router_ref', None)
+        if router is None:
+            return
+        try:
+            active = router.get_active_slot()
+            slot_node = router.get_slot_node(active)
+            if slot_node is node_item or slot_node in downstream:
+                router.activate(active)
+        except Exception as exc:
+            _debug(f"{self.NODE_NAME}: post-async viewer refresh "
+                   f"failed: {exc}")
+
+    # ------------------------------------------------------------------
     # MRML observers — auto-dirty when upstream MRML changes externally
     # ------------------------------------------------------------------
 
@@ -399,10 +506,12 @@ class SlicerBaseNode:
             try:
                 tag = mrml_node.AddObserver(
                     vtk.vtkCommand.ModifiedEvent,
-                    lambda caller, event, ni=node_item:
-                        self._on_input_modified(ni))
+                    lambda caller, event, ni=node_item, up=up_node_data:
+                        self._on_input_modified(ni, up))
                 self._input_observers[port_name] = (mrml_node, tag)
-            except Exception:
+            except Exception as exc:
+                _debug(f"{self.NODE_NAME}: could not observe input "
+                       f"'{port_name}': {exc}")
                 continue
 
     def _clear_input_observers(self):
@@ -414,17 +523,25 @@ class SlicerBaseNode:
                 pass
         self._input_observers.clear()
 
-    def _on_input_modified(self, node_item):
+    def _on_input_modified(self, node_item, up_node_data=None):
         """
         Observer callback (debounced).  An upstream MRML node fired a
         ModifiedEvent.  Mark this graph node and everything downstream
         dirty, and repaint to show the dirty indicator.
 
-        Suppressed entirely when self._self_modified is set: that means
-        we're inside our own execute() and the Modified event is
-        almost certainly a side-effect of our own write.
+        Suppressed when self._self_modified is set (we're inside our own
+        execute() and the Modified event is a side-effect of our own
+        write) AND when the upstream graph node is inside ITS execute():
+        that write is graph-internal, the executor already runs us in the
+        same pass, and scheduling a dirty mark here would land after the
+        pass and falsely re-dirty a freshly-cleaned chain. External edits
+        (other modules, scripts, the user) are still detected because
+        they happen outside any execute() window.
         """
         if self._self_modified:
+            return
+        if up_node_data is not None and getattr(up_node_data,
+                                                '_self_modified', False):
             return
         if self._dirty_pending:
             return
@@ -433,14 +550,20 @@ class SlicerBaseNode:
         def _fire():
             self._dirty_pending = False
             self.mark_dirty()
-            scene = node_item.scene() if node_item is not None else None
-            if scene is not None and hasattr(scene, 'mark_dirty_from'):
-                try:
-                    scene.mark_dirty_from(node_item)
-                except Exception:
-                    pass
+            # Hand-edited content cannot be re-cooked from upstream; flag
+            # that it may now be misaligned with its changed input.
+            if self.EDIT_STATE:
+                self.stale_input = True
+            # This fires 100 ms after scheduling; the canvas item or its
+            # scene may have been deleted in between (module reload,
+            # graph clear, test teardown). A call into a dead PythonQt
+            # wrapper can hard-crash Slicer, so guard the entire block.
             try:
-                node_item.update()
+                scene = node_item.scene() if node_item is not None else None
+                if scene is not None and hasattr(scene, 'mark_dirty_from'):
+                    scene.mark_dirty_from(node_item)
+                elif node_item is not None:
+                    node_item.update()
             except Exception:
                 pass
 
@@ -493,13 +616,21 @@ class LinkedModuleNode(SlicerBaseNode):
             if value is None:
                 continue
             setters = (setter_spec,) if isinstance(setter_spec, str) else tuple(setter_spec)
+            pushed = False
             for setter_name in setters:
                 if hasattr(module_widget, setter_name):
                     try:
                         getattr(module_widget, setter_name)(value)
+                        pushed = True
                         break
-                    except Exception:
+                    except Exception as exc:
+                        _debug(f"{self.NODE_NAME}: setter "
+                               f"'{setter_name}' raised: {exc}")
                         continue
+            if not pushed:
+                _debug(f"{self.NODE_NAME}: no working setter for input "
+                       f"'{port_name}' (tried {', '.join(setters)}); the "
+                       f"{self.LINKED_MODULE} widget API may have changed")
 
     def _resolve_input(self, node_item, port_name):
         """Walk upstream to fetch the current value at our `port_name` input."""

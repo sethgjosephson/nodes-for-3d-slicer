@@ -16,6 +16,38 @@ from .constants  import (CANVAS_BG, GRID_DOT_COLOR, GRID_SPACING,
                           NODE_WIDTH, NODE_TITLE_HEIGHT, NODE_BODY_HEIGHT)
 
 
+# Version of the serialised graph format. Bump when a change would stop
+# older builds from loading a newly saved graph. Loaders accept any file
+# with version <= GRAPH_FORMAT_VERSION (missing version = legacy = 0).
+GRAPH_FORMAT_VERSION = 1
+
+
+def _resolve_node_class(nd):
+    """
+    Resolve a serialised node entry to its Python class.
+
+    Prefers the stable 'type' id via Nodes.NODE_TYPE_REGISTRY so saved
+    graphs survive class renames and module moves. Falls back to the
+    legacy module+class import path for graphs saved before the registry
+    existed. Returns None if neither resolves.
+    """
+    type_id = nd.get('type') or nd.get('class')
+    if type_id:
+        try:
+            from Nodes import NODE_TYPE_REGISTRY
+            cls = NODE_TYPE_REGISTRY.get(type_id)
+            if cls is not None:
+                return cls
+        except Exception:
+            pass
+    try:
+        import importlib
+        mod = importlib.import_module(nd['module'])
+        return getattr(mod, nd['class'])
+    except Exception:
+        return None
+
+
 def _node_position(node_item):
     """
     Return the QPointF position of a NodeItem, regardless of whether
@@ -578,10 +610,12 @@ class NodeEditorScene(QGraphicsScene):
         for i, ni in enumerate(selected):
             idx_map[id(ni)] = i
             p = _node_position(ni)
+            cls = ni.node_data.__class__
             nodes_data.append({
                 'id':       i,
-                'class':    ni.node_data.__class__.__name__,
-                'module':   ni.node_data.__class__.__module__,
+                'type':     cls.NODE_TYPE or cls.__name__,
+                'class':    cls.__name__,
+                'module':   cls.__module__,
                 'x':        p.x(),
                 'y':        p.y(),
                 'props':    dict(ni.node_data._props),
@@ -609,7 +643,6 @@ class NodeEditorScene(QGraphicsScene):
         if not clipboard or not clipboard.get('nodes'):
             return []
 
-        import importlib
         nodes = clipboard['nodes']
 
         # Compute offset
@@ -623,10 +656,8 @@ class NodeEditorScene(QGraphicsScene):
         self.clearSelection()
         new_items = {}
         for nd in nodes:
-            try:
-                mod = importlib.import_module(nd['module'])
-                cls = getattr(mod, nd['class'])
-            except Exception:
+            cls = _resolve_node_class(nd)
+            if cls is None:
                 continue
             try:
                 inst = cls()
@@ -673,17 +704,19 @@ class NodeEditorScene(QGraphicsScene):
 
     def serialise(self):
         """Return a JSON-serialisable dict describing the full graph."""
-        import json
-
         nodes = []
         node_ids = {}
         for i, ni in enumerate(self.all_node_items()):
             node_ids[id(ni)] = i
             p = _node_position(ni)
+            cls = ni.node_data.__class__
             nodes.append({
                 'id':       i,
-                'class':    ni.node_data.__class__.__name__,
-                'module':   ni.node_data.__class__.__module__,
+                # 'type' is the stable id; 'class'/'module' are kept so
+                # builds predating the registry can still load the file.
+                'type':     cls.NODE_TYPE or cls.__name__,
+                'class':    cls.__name__,
+                'module':   cls.__module__,
                 'x':        p.x(),
                 'y':        p.y(),
                 'props':    dict(ni.node_data._props),
@@ -701,20 +734,28 @@ class NodeEditorScene(QGraphicsScene):
                     'dst_port':  edge.target_port.port_name,
                 })
 
-        return {'nodes': nodes, 'edges': edges}
+        return {'version': GRAPH_FORMAT_VERSION, 'nodes': nodes, 'edges': edges}
 
     def deserialise(self, data, router=None):
         """Restore a graph from a serialised dict."""
-        import importlib
+        version = data.get('version', 0)
+        if version > GRAPH_FORMAT_VERSION:
+            raise ValueError(
+                f"This graph was saved by a newer version of the Node "
+                f"Editor (format {version}, this build reads up to "
+                f"{GRAPH_FORMAT_VERSION}). Update the extension to load it.")
 
         # Clear existing content
         for ni in self.all_node_items():
             self.remove_node(ni)
 
         index = {}    # serialised id → NodeItem
+        skipped = []
         for nd in data.get('nodes', []):
-            mod   = importlib.import_module(nd['module'])
-            cls   = getattr(mod, nd['class'])
+            cls = _resolve_node_class(nd)
+            if cls is None:
+                skipped.append(nd.get('type') or nd.get('class') or '?')
+                continue
             node  = cls()
             for k, v in nd.get('props', {}).items():
                 node.set_property(k, v)
@@ -728,12 +769,18 @@ class NodeEditorScene(QGraphicsScene):
             index[nd['id']] = ni
 
         for ed in data.get('edges', []):
-            src_ni   = index[ed['src_node']]
-            dst_ni   = index[ed['dst_node']]
+            src_ni   = index.get(ed['src_node'])
+            dst_ni   = index.get(ed['dst_node'])
+            if src_ni is None or dst_ni is None:
+                continue   # endpoint was an unresolvable node
             src_port = src_ni.get_port(ed['src_port'], is_input=False)
             dst_port = dst_ni.get_port(ed['dst_port'], is_input=True)
             if src_port and dst_port:
                 self.connect_ports(src_port, dst_port)
+
+        if skipped:
+            print(f"[NodeEditor] deserialise: skipped unknown node "
+                  f"type(s): {', '.join(sorted(set(skipped)))}")
 
     # ------------------------------------------------------------------
     # Helpers

@@ -274,6 +274,9 @@ class MarkupsNode(LinkedModuleNode):
     NODE_NAME     = "Markups"
     CATEGORY      = "I/O"
     LINKED_MODULE = "Markups"
+    # Placements are hand-made state; if upstream data changes they may
+    # no longer sit where the user intended. Show the stale-input badge.
+    EDIT_STATE    = True
 
     INPUT_PORTS   = [("markup_in",  "Markup", MARKUP)]
     OUTPUT_PORTS  = [("markup_out", "Markup", MARKUP)]

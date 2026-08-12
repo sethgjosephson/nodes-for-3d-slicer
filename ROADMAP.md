@@ -23,8 +23,8 @@ Wrap the most-used Slicer tools as nodes.
 - [x] Apply Transform
 - [x] Crop Volume node (`process_nodes.py`)
 - [x] Volumes / Models / Markups / Transforms / Segmentations / Segment Editor as linked-module nodes
-- [ ] **Generic SimpleFilterNode** — single node driven by SimpleITK's filter list (replaces ~18 hand-written CLI wrappers)
-- [ ] Edge Detection filter
+- [x] **Generic SimpleFilterNode** — one node, a curated set of 14 single-input SimpleITK filters (edge detection, denoising, morphology, intensity, N4 bias correction). Filter dropdown with a per-filter parameter form; slow filters opt out of the live auto-rerun loop. Adding a filter is one `FILTERS` entry in `simple_filter_node.py`.
+- [x] Edge Detection filter (Sobel / Canny / Gradient Magnitude, via SimpleFilterNode)
 - [ ] Label Map → Segmentation conversion
 - [ ] Grow from Seeds segmentation node
 - [ ] Surface Model node (Marching Cubes → `vtkMRMLModelNode`)
@@ -73,8 +73,27 @@ Tie the graph to Slicer's MRML scene lifecycle.
 - [x] **Live auto-rerun on property change** — debounced 300 ms, walks the chain feeding the active viewer slot, opts cheap nodes in via `AUTO_EXECUTE` class attribute (defaults True; off on Registration, LoadVolume, Segmentation, SegmentEditor).
 - [x] Async CLI for RegistrationNode (BRAINSFit) — canvas stays responsive during multi-minute runs, with cancel-on-rerun.
 - [x] `_owned_outputs` separated from `_cache` so disabled→enabled cycles never compound effects (was the double-smoothing bug).
-- [ ] **Graph state in `vtkMRMLScriptedModuleNode`** so the graph travels inside `.mrb` saves (the graph file remains the canonical artifact; this is for scene+graph travelling together).
+- [x] **Graph state in `vtkMRMLScriptedModuleNode`** so the graph travels inside `.mrb` saves (tagged carrier node, restore on EndImportEvent, duplicate-carrier consolidation; the graph file remains the canonical artifact).
 - [ ] Drop volume on canvas auto-Load (covered above under Phase 3).
+
+## Phase 4.5 — Hardening (from the August 2026 feasibility review)
+Correctness and robustness fixes before widening the node library. See
+[`docs/design/feasibility_review_2026-08.md`](docs/design/feasibility_review_2026-08.md)
+for the full analysis.
+
+- [x] **Executor failure isolation** — a node that raises now shows a red error badge and blocks all of its descendants for that pass, instead of letting them run against stale or missing inputs and be marked clean.
+- [x] **Async execution barrier** — an async node (Registration) left mid-flight no longer lets downstream nodes cook against its empty placeholder outputs. Descendants stay blocked; the CLI completion callback marks the node clean, dirties downstream, and re-cooks the active viewer slot automatically.
+- [x] **False re-dirty fix** — during a pipeline pass, upstream writes fired observers bound on the previous run, re-marking freshly-cleaned chains dirty ~100 ms after every cook. Graph-internal writes are now recognised and skipped; external edits are still detected.
+- [x] **Apply Transform no longer mutates its input** — it copies the volume into an output it owns and transforms the copy, so other branches off the same source stay untouched and harden mode is no longer destructive to shared data.
+- [x] **Graph file format versioning** — saved graphs carry a `version` field and a stable per-node `type` id resolved through `Nodes.NODE_TYPE_REGISTRY`, decoupled from Python class names. Legacy files still load; files from a newer format refuse to load with a clear message.
+- [x] **Stale-input warning on edit-state nodes** — Segment Editor and Markups nodes show an amber badge when an upstream input changes under hand-edited content (which cannot be re-cooked and may be misaligned). Double-clicking the node acknowledges the warning.
+- [x] **Debug logging switch** — `SLICER_NODE_EDITOR_DEBUG=1` logs swallowed setter misses and observer failures, for smoke-checking after Slicer upgrades.
+- [x] **Self-test coverage** — module self-tests now cover pipeline execution on a synthetic volume, executor failure isolation, and a serialisation round trip (plus the original scene/node/edge tests).
+- [x] **Threshold mode property** — "Keep values" (default; original intensities inside the range, renders like anatomy in 3D) vs "Binary mask" (0/1 output for mask-style downstream steps). A 0/1 mask is nearly invisible in volume rendering, which was the old default's surprise.
+- [x] **Volume Rendering transfer-function rescue** — presets stay in charge; the window/level sync only fires when the current transfer function provably renders the data invisibly (zero sampled opacity across the volume's scalar range, e.g. a 0/1 mask under an anatomical preset). A hand-tweaked VR property (detected via MTime) is edit-state and never touched. (First version synced unconditionally, which replaced every preset with a grayscale ramp; fixed same day.)
+- [x] **Volume Rendering owns ONE display node** — previously the VR node looked display state up by volume identity, so a D-key passthrough (which swaps a different upstream volume into the node) minted a fresh display node with a default fitted ROI, appearing to randomly reset the user's cropping ROI. The graph node now owns a single display node and re-attaches it to whatever volume flows in; ROI and transfer function ride along.
+- [ ] **Cache eviction policy** — intermediates are full volume copies; deep chains on large CTs will need "keep cooked outputs only for viewer-routed nodes, recompute interior nodes on demand" (interacts with input observers).
+- [ ] **Forward-fix for stale edit-state data** — when the upstream change is a known transform, offer to resample or transform the hand-edited segmentation/markups forward instead of only warning.
 
 ## Phase 5 — Advanced Nodes
 Power-user and research features.

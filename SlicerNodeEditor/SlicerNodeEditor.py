@@ -365,9 +365,13 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             None, "Load Node Graph", "", "JSON (*.json)")[0]
         if not path:
             return
-        with open(path) as f:
-            data = json.load(f)
-        self._canvas.node_scene.deserialise(data, self._router)
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            self._canvas.node_scene.deserialise(data, self._router)
+        except Exception as exc:
+            import traceback; traceback.print_exc()
+            slicer.util.errorDisplay(f"Could not load graph:\n{exc}")
 
     # ------------------------------------------------------------------
     # Default-startup-module toggle
@@ -751,6 +755,22 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self._dock = None
         self.removeObservers()
 
+    def onReload(self):
+        """Reload this module AND its subpackages.
+
+        Slicer's stock reload only re-imports SlicerNodeEditor.py; the
+        NodeGraph/ and Nodes/ packages would stay stale in sys.modules
+        until a full Slicer restart, so code changes there would
+        silently not take effect (and reloaded tests would run against
+        old classes). Purge them first so the re-import is complete.
+        """
+        import sys
+        for name in list(sys.modules):
+            if (name == 'NodeGraph' or name.startswith('NodeGraph.')
+                    or name == 'Nodes' or name.startswith('Nodes.')):
+                del sys.modules[name]
+        ScriptedLoadableModuleWidget.onReload(self)
+
 
 # ---------------------------------------------------------------------------
 # Logic  (thin stub — all logic lives in the graph/nodes)
@@ -773,6 +793,11 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
         self.test_SceneCreation()
         self.test_NodePlacement()
         self.test_EdgeConnection()
+        self.test_PipelineExecution()
+        self.test_SimpleFilterExecution()
+        self.test_VolumeRenderingDisplayStability()
+        self.test_ExecutorBlocksFailedBranch()
+        self.test_SerialisationRoundTrip()
 
     def test_SceneCreation(self):
         self.delayDisplay("Testing scene creation")
@@ -806,3 +831,258 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
         edge = scene.connect_ports(out_port, in_port)
         self.assertIsNotNone(edge)
         self.delayDisplay("Edge connection OK")
+
+    # ------------------------------------------------------------------
+    # Test helpers: a source node backed by a synthetic in-memory volume
+    # (no downloads, no file paths) and a source that always fails.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _make_synthetic_source():
+        """Return a SlicerBaseNode subclass whose output is a small
+        synthetic volume: a 10x10x10 zero volume with a 4x4x4 block of
+        voxels at value 200."""
+        import numpy as np
+        from Nodes.base_node import SlicerBaseNode, VOLUME
+
+        array = np.zeros((10, 10, 10), dtype=np.int16)
+        array[3:7, 3:7, 3:7] = 200
+        volume = slicer.util.addVolumeFromArray(array, name='TestSourceVolume')
+
+        class _TestSourceNode(SlicerBaseNode):
+            NODE_NAME    = "Test Source"
+            OUTPUT_PORTS = [('volume_out', 'Volume', VOLUME)]
+
+            def execute(self, inputs):
+                return {'volume_out': volume}
+
+        return _TestSourceNode, volume
+
+    @staticmethod
+    def _dispose_graph_scene(scene, extra_mrml_nodes=()):
+        """
+        Tear down a test graph scene. Removing each canvas node clears
+        its MRML observers, so no debounced callback can later fire
+        against deleted Qt items (dangling PythonQt wrappers can
+        hard-crash Slicer, not just raise). Also removes any MRML nodes
+        the test created. Safe to call after a failed assertion.
+        """
+        try:
+            for ni in list(scene.all_node_items()):
+                scene.remove_node(ni)
+        except Exception:
+            import traceback; traceback.print_exc()
+        for n in extra_mrml_nodes:
+            try:
+                if n is not None and slicer.mrmlScene.GetNodeByID(n.GetID()):
+                    slicer.mrmlScene.RemoveNode(n)
+            except Exception:
+                pass
+
+    def test_PipelineExecution(self):
+        self.delayDisplay("Testing pipeline execution")
+        from NodeGraph import NodeEditorScene, Executor
+        from Nodes     import ThresholdNode
+        from NodeGraph._qt import QPointF
+
+        source_cls, volume = self._make_synthetic_source()
+        scene  = NodeEditorScene()
+        thresh = None
+        try:
+            src    = scene.add_node(source_cls(),    QPointF(0,   0))
+            thresh = scene.add_node(ThresholdNode(), QPointF(0, 200))
+            thresh.node_data.set_property('lower', 100.0)
+            thresh.node_data.set_property('upper', 500.0)
+            scene.connect_ports(src.get_port('volume_out', is_input=False),
+                                thresh.get_port('volume_in',  is_input=True))
+
+            executor = Executor(scene)
+            executor.execute_up_to(thresh)
+
+            out = thresh.node_data.get_cached_output('volume_out')
+            self.assertIsNotNone(out)
+            self.assertFalse(thresh.node_data.is_dirty)
+            # Default mode is 'Keep values': the 200-valued block keeps
+            # its intensity, everything else becomes 0.
+            result = slicer.util.arrayFromVolume(out)
+            self.assertEqual(int(result.max()), 200)
+            self.assertEqual(int((result > 0).sum()), 4 * 4 * 4)
+
+            # 'Binary mask' mode: same voxels, 0/1 output.
+            thresh.node_data.set_property('mode', 'Binary mask')
+            executor.execute_up_to(thresh)
+            result = slicer.util.arrayFromVolume(
+                thresh.node_data.get_cached_output('volume_out'))
+            self.assertEqual(int(result.max()), 1)
+            self.assertEqual(int(result.sum()), 4 * 4 * 4)
+            self.delayDisplay("Pipeline execution OK")
+        finally:
+            extra = [volume]
+            if thresh is not None:
+                extra += list(thresh.node_data._owned_outputs.values())
+            self._dispose_graph_scene(scene, extra)
+
+    def test_SimpleFilterExecution(self):
+        self.delayDisplay("Testing Simple Filter node")
+        from NodeGraph import NodeEditorScene, Executor
+        from Nodes     import SimpleFilterNode
+        from NodeGraph._qt import QPointF
+
+        source_cls, volume = self._make_synthetic_source()
+        scene = NodeEditorScene()
+        filt  = None
+        try:
+            src  = scene.add_node(source_cls(),      QPointF(0,   0))
+            filt = scene.add_node(SimpleFilterNode(), QPointF(0, 200))
+            scene.connect_ports(src.get_port('volume_out', is_input=False),
+                                filt.get_port('volume_in',  is_input=True))
+
+            # Default filter is Gradient Magnitude: the 200-valued block's
+            # faces must produce nonzero gradients.
+            Executor(scene).execute_up_to(filt)
+            out = filt.node_data.get_cached_output('volume_out')
+            self.assertIsNotNone(out)
+            self.assertFalse(filt.node_data.is_dirty)
+            result = slicer.util.arrayFromVolume(out)
+            self.assertGreater(float(result.max()), 0.0)
+
+            # The slow-filter guard: N4 must flip AUTO_EXECUTE off,
+            # cheap filters back on.
+            filt.node_data.set_property('filter', 'N4 Bias Field Correction')
+            self.assertFalse(filt.node_data.AUTO_EXECUTE)
+            filt.node_data.set_property('filter', 'Invert Intensity')
+            self.assertTrue(filt.node_data.AUTO_EXECUTE)
+            self.delayDisplay("Simple Filter node OK")
+        finally:
+            extra = [volume]
+            if filt is not None:
+                extra += list(filt.node_data._owned_outputs.values())
+            self._dispose_graph_scene(scene, extra)
+
+    def test_VolumeRenderingDisplayStability(self):
+        """The VR node must keep ONE display node (ROI + transfer
+        function) when its input volume's identity changes, e.g. from a
+        D-key passthrough swapping which upstream volume flows in."""
+        self.delayDisplay("Testing VR display node stability")
+        import numpy as np
+        from Nodes import VolumeRenderingNode
+
+        array = np.zeros((8, 8, 8), dtype=np.int16)
+        array[2:6, 2:6, 2:6] = 100
+        volA = slicer.util.addVolumeFromArray(array, name='VRTestVolA')
+        volB = slicer.util.addVolumeFromArray(array, name='VRTestVolB')
+        vr = VolumeRenderingNode()
+        try:
+            vr.execute({'volume_in': volA})
+            dn_first = vr._vr_display_node
+            self.assertIsNotNone(dn_first)
+            self.assertEqual(dn_first.GetDisplayableNode().GetID(),
+                             volA.GetID())
+
+            # Identity switch (what a passthrough toggle does): the SAME
+            # display node must move to the new volume, not be replaced.
+            vr.execute({'volume_in': volB})
+            self.assertEqual(vr._vr_display_node.GetID(), dn_first.GetID())
+            self.assertEqual(vr._vr_display_node.GetDisplayableNode().GetID(),
+                             volB.GetID())
+
+            # And back again.
+            vr.execute({'volume_in': volA})
+            self.assertEqual(vr._vr_display_node.GetID(), dn_first.GetID())
+            self.assertEqual(vr._vr_display_node.GetDisplayableNode().GetID(),
+                             volA.GetID())
+            self.delayDisplay("VR display node stability OK")
+        finally:
+            to_remove = []
+            dn = getattr(vr, '_vr_display_node', None)
+            if dn is not None:
+                for getter in ('GetVolumePropertyNode', 'GetROINode',
+                               'GetMarkupsROINode'):
+                    try:
+                        to_remove.append(getattr(dn, getter)())
+                    except Exception:
+                        pass
+                to_remove.append(dn)
+            to_remove += [volA, volB]
+            for n in to_remove:
+                try:
+                    if n is not None and slicer.mrmlScene.GetNodeByID(n.GetID()):
+                        slicer.mrmlScene.RemoveNode(n)
+                except Exception:
+                    pass
+
+    def test_ExecutorBlocksFailedBranch(self):
+        self.delayDisplay("Testing executor failure isolation")
+        from NodeGraph import NodeEditorScene, Executor
+        from Nodes     import ThresholdNode
+        from Nodes.base_node import SlicerBaseNode, VOLUME
+        from NodeGraph._qt import QPointF
+
+        class _FailingSourceNode(SlicerBaseNode):
+            NODE_NAME    = "Failing Source"
+            OUTPUT_PORTS = [('volume_out', 'Volume', VOLUME)]
+
+            def execute(self, inputs):
+                raise RuntimeError("intentional test failure")
+
+        scene = NodeEditorScene()
+        try:
+            src    = scene.add_node(_FailingSourceNode(), QPointF(0,   0))
+            thresh = scene.add_node(ThresholdNode(),      QPointF(0, 200))
+            scene.connect_ports(src.get_port('volume_out', is_input=False),
+                                thresh.get_port('volume_in',  is_input=True))
+
+            # errorDisplay pops a modal dialog outside testing mode; swap it
+            # out so the test runs unattended either way.
+            original_error_display = slicer.util.errorDisplay
+            slicer.util.errorDisplay = lambda *a, **k: print(f"[test] {a}")
+            try:
+                Executor(scene).execute_up_to(thresh)
+            finally:
+                slicer.util.errorDisplay = original_error_display
+
+            # The source failed: it carries the error, and the downstream
+            # threshold must NOT have run against missing input.
+            self.assertIsNotNone(src.node_data._last_error)
+            self.assertTrue(src.node_data.is_dirty)
+            self.assertTrue(thresh.node_data.is_dirty)
+            self.assertIsNone(thresh.node_data.get_cached_output('volume_out'))
+            self.assertIsNone(thresh.node_data._last_error)
+            self.delayDisplay("Executor failure isolation OK")
+        finally:
+            self._dispose_graph_scene(scene)
+
+    def test_SerialisationRoundTrip(self):
+        self.delayDisplay("Testing serialisation round trip")
+        from NodeGraph import NodeEditorScene
+        from NodeGraph.scene import GRAPH_FORMAT_VERSION
+        from Nodes     import ThresholdNode, GaussianSmoothNode
+        from NodeGraph._qt import QPointF
+
+        scene = NodeEditorScene()
+        a = scene.add_node(GaussianSmoothNode(), QPointF(0,   0))
+        b = scene.add_node(ThresholdNode(),      QPointF(0, 200))
+        b.node_data.set_property('lower', 42.0)
+        scene.connect_ports(a.get_port('volume_out', is_input=False),
+                            b.get_port('volume_in',  is_input=True))
+
+        data = scene.serialise()
+        self.assertEqual(data['version'], GRAPH_FORMAT_VERSION)
+        self.assertTrue(all('type' in nd for nd in data['nodes']))
+
+        restored = NodeEditorScene()
+        restored.deserialise(data, None)
+        self.assertEqual(len(restored.all_node_items()), 2)
+        self.assertEqual(len(restored._edges), 1)
+        thresh_restored = next(
+            ni for ni in restored.all_node_items()
+            if ni.node_data.NODE_NAME == 'Threshold')
+        self.assertEqual(
+            float(thresh_restored.node_data.get_property('lower')), 42.0)
+
+        # A file from a newer format must refuse to load, not corrupt.
+        with self.assertRaises(ValueError):
+            restored.deserialise(
+                {'version': GRAPH_FORMAT_VERSION + 1,
+                 'nodes': [], 'edges': []}, None)
+        self.delayDisplay("Serialisation round trip OK")

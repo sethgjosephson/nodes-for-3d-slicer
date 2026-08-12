@@ -18,6 +18,7 @@ set(MODULE_PYTHON_SCRIPTS
   Nodes/base_node.py
   Nodes/io_nodes.py
   Nodes/filter_nodes.py
+  Nodes/simple_filter_node.py
   Nodes/segment_nodes.py
   Nodes/register_nodes.py
   Nodes/viz_nodes.py
