@@ -1,5 +1,5 @@
 """
-Layout node — routes up to four inputs to Slicer's four views at once.
+Layout node: routes up to four inputs to Slicer's four views at once.
 
 Pressing 1 or 2 on this node switches Slicer to the Four-Up layout and
 pipes each connected volume to the corresponding slice/3D view.

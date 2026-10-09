@@ -1,9 +1,9 @@
 """
-ViewerSlotManager — manages the two viewer slots (keys 1 and 2).
+ViewerSlotManager: the ten viewer slots (keys 1..9 and 0).
 
-Pressing 1 or 2 over a node assigns that node to the slot *and* activates
-it.  Pressing the same key again with nothing hovered recalls the last
-assignment for that slot (toggle-style, like compositing viewers).
+Pressing a slot key with a node selected assigns that node to the slot
+and displays it.  Pressing it with nothing selected re-displays the
+slot's current node.
 """
 
 
@@ -15,10 +15,10 @@ class ViewerSlotManager:
     -----
     router = ViewerSlotManager()
 
-    # User presses '1' while hovering NodeItem 'n'
+    # User presses '1' with NodeItem 'n' selected
     router.assign_and_activate(n, 1)
 
-    # User presses '1' again with nothing hovered
+    # User presses '1' again with nothing selected
     router.activate(1)
     """
 

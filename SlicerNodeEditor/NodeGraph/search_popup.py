@@ -1,5 +1,5 @@
 """
-SearchPopup — Tab-key node-search overlay.
+SearchPopup: Tab-key node-search overlay.
 
 Press Tab anywhere on the canvas → popup appears at cursor.
 Type to filter the node list, arrow-keys to navigate,

@@ -1,5 +1,5 @@
 """
-NodeEditorScene — QGraphicsScene managing nodes, edges, and the
+NodeEditorScene: QGraphicsScene managing nodes, edges, and the
 edge-drag state machine.
 
 Topology queries used by Executor live here so neither NodeItem nor
@@ -79,7 +79,7 @@ class NodeEditorScene(QGraphicsScene):
         super().__init__(parent)
 
         self._edges            = []          # [EdgeItem]
-        self._node_items       = []          # [NodeItem] — kept because PythonQt
+        self._node_items       = []          # [NodeItem], kept because PythonQt
                                              # loses subclass identity when items
                                              # round-trip through QGraphicsScene
         self._drag_edge        = None        # temp EdgeItem during drag
@@ -347,7 +347,7 @@ class NodeEditorScene(QGraphicsScene):
         that should be connected after `node_item` is removed, so that
         a node in the middle of a pipe leaves the rest of the pipeline
         intact.  Pairs each incoming edge with a type-compatible outgoing
-        edge.  Doesn't modify the graph — caller decides what to do.
+        edge.  Doesn't modify the graph; caller decides what to do.
         """
         incoming = [e for e in self._edges
                     if e.target_port and e.target_port.node_item is node_item]
@@ -376,7 +376,7 @@ class NodeEditorScene(QGraphicsScene):
         """
         Remove every edge connected to this node.  If the node sits in
         the middle of a pipe (has both incoming AND outgoing edges with
-        compatible types), splice it OUT — directly connect upstream
+        compatible types), splice it OUT: directly connect upstream
         to downstream so the rest of the pipeline stays intact.
         """
         if not self.edges_of(node_item):
@@ -526,7 +526,7 @@ class NodeEditorScene(QGraphicsScene):
         return True
 
     # ------------------------------------------------------------------
-    # Undo / Redo  (snapshot-based — captures the entire serialised graph)
+    # Undo / Redo  (snapshot-based, captures the entire serialized graph)
     # ------------------------------------------------------------------
 
     def set_router(self, router):
@@ -542,7 +542,7 @@ class NodeEditorScene(QGraphicsScene):
         except Exception:
             import traceback; traceback.print_exc()
             return
-        # Skip if identical to the previous snapshot — avoids duplicate
+        # Skip if identical to the previous snapshot; avoids duplicate
         # entries when several capture points fire for the same logical action.
         if self._undo_stack and self._undo_stack[-1] == snap:
             return
@@ -583,7 +583,7 @@ class NodeEditorScene(QGraphicsScene):
         """Wipe and reload from a serialised snapshot."""
         self._suppress_undo_capture = True
         try:
-            # Reset router slots — referenced NodeItems will be recreated
+            # Reset router slots; referenced NodeItems will be recreated
             if self._router_ref is not None:
                 try:
                     self._router_ref._slots = {i: None for i in range(1, 11)}

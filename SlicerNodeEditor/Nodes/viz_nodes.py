@@ -15,7 +15,7 @@ class VolumeRenderingNode(LinkedModuleNode):
     OUTPUT_PORTS   = []
     INPUT_SETTERS  = {'volume_in': ('setMRMLVolumeNode', 'setMRMLNode')}
 
-    # No PROPERTIES — settings live in the native VR module widget,
+    # No PROPERTIES; settings live in the native VR module widget,
     # which Slicer shows automatically when this node is selected.
 
     # Attribute on the VR display node recording the volume property's
@@ -242,7 +242,7 @@ class VolumeRenderingNode(LinkedModuleNode):
 
 
 # ---------------------------------------------------------------------------
-# Models — passthrough wrapper around Slicer's Models module
+# Models: passthrough wrapper around Slicer's Models module
 # ---------------------------------------------------------------------------
 
 class ModelsNode(LinkedModuleNode):

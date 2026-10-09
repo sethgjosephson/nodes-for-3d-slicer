@@ -1,5 +1,5 @@
 """
-SimpleFilterNode — one node, a curated set of single-input SimpleITK
+SimpleFilterNode: one node, a curated set of single-input SimpleITK
 filters.
 
 Each entry in FILTERS declares its display name, output-name suffix,
@@ -202,7 +202,7 @@ class SimpleFilterNode(SlicerBaseNode):
     def _sync_auto_execute(self):
         """Instance attribute shadows the class default so expensive
         filters (N4) stay out of the live auto-rerun loop while cheap
-        ones keep the compositor-style live feel."""
+        ones keep updating live."""
         spec = FILTERS.get(self.get_property('filter'))
         self.AUTO_EXECUTE = bool(spec.get('auto', True)) if spec else True
 

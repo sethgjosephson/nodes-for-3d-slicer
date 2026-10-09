@@ -1,16 +1,17 @@
 """
-NodeEditorCanvas — QGraphicsView with pan/zoom, keyboard shortcuts,
+NodeEditorCanvas: QGraphicsView with pan/zoom, keyboard shortcuts,
 and the Tab search popup.
 
 Keyboard shortcuts
 ──────────────────
-1 / 2        assign the currently-selected node to viewer slot and
-             activate it; if nothing is selected, recall the slot's
-             last assignment (toggle-style)
+1..9, 0      assign the selected node to viewer slot 1..10 and display
+             it; with nothing selected, re-display the slot's node
 Tab          open node-search popup at cursor
 Delete /
 Backspace    delete selected nodes and their edges
-F            frame selected nodes in view (or all nodes if nothing selected)
+F            fullscreen the selected node's output (or frame all nodes
+             if nothing is selected)
+D            disable / enable selected nodes (passthrough)
 Escape       deselect all
 """
 
@@ -99,7 +100,7 @@ class NodeEditorCanvas(QGraphicsView):
         self.setFocusPolicy(Qt.StrongFocus)
 
     def focusNextPrevChild(self, next):
-        # Prevent Qt from stealing Tab for focus traversal — we want it
+        # Prevent Qt from stealing Tab for focus traversal; we want it
         return False
 
     def enterEvent(self, event):
@@ -155,7 +156,7 @@ class NodeEditorCanvas(QGraphicsView):
         QGraphicsView.mouseMoveEvent(self, event)
 
     # ------------------------------------------------------------------
-    # Middle-mouse pan (scroll-bar based — avoids QMouseEvent construction)
+    # Middle-mouse pan (scroll-bar based, avoids QMouseEvent construction)
     # ------------------------------------------------------------------
 
     def mousePressEvent(self, event):
@@ -255,7 +256,7 @@ class NodeEditorCanvas(QGraphicsView):
             self._scene.clearSelection()
             return
 
-        # --- Disable / enable selected nodes (compositor-style D) ---
+        # --- Disable / enable selected nodes (D key) ---
         if key == Qt.Key_D and not ctrl:
             self._toggle_disable_selected()
             return
@@ -348,7 +349,7 @@ class NodeEditorCanvas(QGraphicsView):
                 f"Fullscreen routing failed:\n{exc}")
 
     def _toggle_disable_selected(self):
-        """Toggle the compositor-style 'disabled' flag on every selected node.
+        """Toggle the 'disabled' flag on every selected node.
         Disabled nodes skip their own work and passthrough the first
         type-compatible input to each output, so downstream sees the
         unprocessed upstream data. Useful for quick A/B comparisons."""
@@ -426,7 +427,7 @@ class NodeEditorCanvas(QGraphicsView):
             self._scene.notify_node_selected(new_items[0])
 
     def _find_paste_entry(self, new_items):
-        """Pick the first pasted node that has an unfilled input port —
+        """Pick the first pasted node that has an unfilled input port:
         the natural 'entry' for piping the previously-selected node into."""
         for ni in new_items:
             if not ni.node_data.INPUT_PORTS:

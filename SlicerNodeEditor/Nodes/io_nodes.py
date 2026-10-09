@@ -206,7 +206,7 @@ def _scope_vr_to_volume(target_volume):
         if dn is None:
             continue
         # Visible iff it belongs to the volume we're currently routing.
-        # (We don't FORCE it visible — only ensure it's hidden when
+        # (We don't FORCE it visible, only ensure it's hidden when
         # unrelated.  The user's explicit ON/OFF state for the matching
         # volume's VR is preserved.)
         if v.GetID() != target_id:
@@ -244,11 +244,11 @@ def _route_volume_fullscreen(node):
 
 
 # ---------------------------------------------------------------------------
-# Volumes — linked to Slicer's "Volumes" module (window/level, contrast, etc.)
+# Volumes: linked to Slicer's "Volumes" module (window/level, contrast, etc.)
 # ---------------------------------------------------------------------------
 
 class VolumesNode(LinkedModuleNode):
-    """Display-property tweaks for a volume — opens Slicer's Volumes module."""
+    """Display-property tweaks for a volume; opens Slicer's Volumes module."""
 
     NODE_NAME     = "Volumes"
     CATEGORY      = "I/O"
@@ -265,7 +265,7 @@ class VolumesNode(LinkedModuleNode):
 
 
 # ---------------------------------------------------------------------------
-# Markups — linked to Slicer's "Markups" module (fiducials, lines, ROIs, ...)
+# Markups: linked to Slicer's "Markups" module (fiducials, lines, ROIs, ...)
 # ---------------------------------------------------------------------------
 
 class MarkupsNode(LinkedModuleNode):

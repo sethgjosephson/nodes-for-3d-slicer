@@ -9,7 +9,7 @@ from .viz_nodes      import VolumeRenderingNode, ModelsNode
 from .layout_node    import LayoutNode
 from .process_nodes  import CropVolumeNode
 
-# Master registry — every class here appears in the Tab search popup
+# Master registry: every class here appears in the Tab search popup
 ALL_NODE_CLASSES = [
     # I/O
     SampleDataNode,

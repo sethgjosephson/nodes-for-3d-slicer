@@ -42,7 +42,7 @@ class ThresholdNode(SlicerBaseNode):
         mode    = self.get_property('mode') or 'Keep values'
         lower   = float(self.get_property('lower'))
         upper   = float(self.get_property('upper'))
-        # SimpleITK requires inside/outside to be uint8_t — cast defensively
+        # SimpleITK requires inside/outside to be uint8_t; cast defensively
         # so older saved graphs with float values keep working.
         outside = int(self.get_property('outside'))
         inside  = int(self.get_property('inside'))

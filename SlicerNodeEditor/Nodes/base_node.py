@@ -217,7 +217,7 @@ class SlicerBaseNode:
     # debounced re-execution of whichever node is currently in the active
     # viewer slot, walking back through dirty ancestors as usual.
     # Set False on expensive operations (long-running CLI, file load,
-    # interactive editing) — they still re-run when the user presses 1
+    # interactive editing); they still re-run when the user presses 1
     # explicitly, but the auto loop will refuse to fire if it would
     # require running them.
     AUTO_EXECUTE = True
@@ -236,7 +236,7 @@ class SlicerBaseNode:
         # the same MRML node instead of polluting an upstream input.
         self._owned_outputs = {}
         self.is_dirty   = True    # True → needs re-execution
-        self.is_disabled = False  # compositor-style D-key: skip execute(), passthrough
+        self.is_disabled = False  # D key: skip execute(), pass inputs through
 
         # Set to the exception text when the last execute() raised; the
         # canvas paints a red error badge while this is non-None. Cleared
@@ -289,13 +289,13 @@ class SlicerBaseNode:
         Parameters
         ----------
         inputs : dict
-            {port_name: vtkMRMLNode | None}  — upstream outputs keyed by
+            {port_name: vtkMRMLNode | None}: upstream outputs keyed by
             this node's input port name.
 
         Returns
         -------
         dict
-            {port_name: vtkMRMLNode}  — outputs, one entry per OUTPUT_PORT.
+            {port_name: vtkMRMLNode}: outputs, one entry per OUTPUT_PORT.
             The Executor stores these into self._cache automatically.
         """
         raise NotImplementedError(
@@ -347,7 +347,7 @@ class SlicerBaseNode:
         properties panel.  Return None (default) to fall back to the
         auto-generated PROPERTIES form.
 
-        Most nodes should use LINKED_MODULE instead — set that to the
+        Most nodes should use LINKED_MODULE instead: set that to the
         name of a Slicer module and Slicer's own widget for that module
         will be shown in the left panel.  This hook is for nodes that
         want a fully bespoke widget.
@@ -357,7 +357,7 @@ class SlicerBaseNode:
     def configure_module_widget(self, module_widget, node_item):
         """
         Called after Slicer switches to LINKED_MODULE.  Override to
-        point the module widget at this node's data — typically by
+        point the module widget at this node's data, typically by
         calling its `setMRMLVolumeNode(...)` / `setSegmentationNode(...)`
         / similar setter with the value cached on this node.
         """
@@ -374,8 +374,8 @@ class SlicerBaseNode:
         """
         Return the MRML node this node owns for port_name, creating it
         on first use. Read from _owned_outputs (NOT _cache) so that
-        passthrough — which writes upstream refs into _cache while a
-        node is disabled — never tricks us into mutating an upstream
+        passthrough (which writes upstream refs into _cache while a
+        node is disabled) never tricks us into mutating an upstream
         input's MRML data on the next enabled execute().
         """
         import slicer
@@ -466,7 +466,7 @@ class SlicerBaseNode:
                    f"failed: {exc}")
 
     # ------------------------------------------------------------------
-    # MRML observers — auto-dirty when upstream MRML changes externally
+    # MRML observers: auto-dirty when upstream MRML changes externally
     # ------------------------------------------------------------------
 
     def _refresh_input_observers(self, node_item):
@@ -571,7 +571,7 @@ class SlicerBaseNode:
             import qt
             qt.QTimer.singleShot(100, _fire)
         except Exception:
-            # No Qt event loop available — fire synchronously
+            # No Qt event loop available; fire synchronously
             _fire()
 
     def __repr__(self):
@@ -579,7 +579,7 @@ class SlicerBaseNode:
 
 
 # ---------------------------------------------------------------------------
-# LinkedModuleNode — thin wrapper around an existing Slicer module
+# LinkedModuleNode: thin wrapper around an existing Slicer module
 # ---------------------------------------------------------------------------
 
 class LinkedModuleNode(SlicerBaseNode):
@@ -587,19 +587,19 @@ class LinkedModuleNode(SlicerBaseNode):
     Base class for nodes that are *thin wrappers* around an existing
     Slicer module.  When the user double-clicks the node, Slicer
     switches to LINKED_MODULE and the module's native widget shows up
-    in the left panel — pre-configured to point at this node's data.
+    in the left panel, pre-configured to point at this node's data.
 
     Subclasses typically only need to set:
       - LINKED_MODULE  : str    (the Slicer module name)
       - INPUT_PORTS    : list   (typed ports for the data flow)
-      - OUTPUT_PORTS   : list   (often a passthrough — same MRML node out)
+      - OUTPUT_PORTS   : list   (often a passthrough: same MRML node out)
       - INPUT_SETTERS  : dict   ({port_name: 'setterMethodName'} mapping
                                   how each input is pushed to the module
                                   widget).  Multiple candidate setter
                                   names may be supplied as a tuple.
 
     `execute(inputs)` defaults to passthrough (each input becomes the
-    same-named output) so the data just flows through untouched —
+    same-named output) so the data just flows through untouched;
     visualization tweaks happen inside the linked module's widget.
     Override execute() if the node actually transforms data.
     """

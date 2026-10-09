@@ -1,5 +1,5 @@
 """
-EdgeItem — QGraphicsPathItem drawing a bezier pipe between two ports.
+EdgeItem: QGraphicsPathItem drawing a bezier pipe between two ports.
 
 When target_port is None the edge is a "drag preview" and its far end
 follows self._float_end (a QPointF in scene coordinates).

@@ -198,7 +198,7 @@ class ApplyTransformNode(SlicerBaseNode):
 
 
 # ---------------------------------------------------------------------------
-# Transforms — linked to Slicer's "Transforms" module
+# Transforms: linked to Slicer's "Transforms" module
 # ---------------------------------------------------------------------------
 
 class TransformsNode(LinkedModuleNode):
