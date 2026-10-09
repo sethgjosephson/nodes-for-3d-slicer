@@ -1,5 +1,5 @@
 """
-PortItem — QGraphicsObject representing a single input or output port.
+PortItem: QGraphicsObject representing a single input or output port.
 
 Ports live as child items of NodeItem and are positioned on its top edge
 (inputs) or bottom edge (outputs).  Dragging from a port begins edge
@@ -59,7 +59,7 @@ class PortItem(QGraphicsObject):
 
         # Fill
         painter.setBrush(QBrush(self._color))
-        # Outline — dark ring so port stands out against node edge
+        # Outline: dark ring so port stands out against node edge
         painter.setPen(QPen(QColor(*NODE_BODY_BG), 2))
         painter.drawEllipse(QPointF(0, 0), radius, radius)
 

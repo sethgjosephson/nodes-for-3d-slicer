@@ -1,179 +1,108 @@
 # Nodes for 3D Slicer
 
-A **procedural node-graph editor** for [3D Slicer](https://slicer.org),
-in the style of visual-effects compositing software. It replaces the
-traditional one-module-panel workflow with a procedural, node-based
-pipeline where every Slicer tool is a draggable, connectable node, and
-data flows through typed channels.
+A node-graph editor for [3D Slicer](https://slicer.org). Each node wraps a Slicer operation. Edges carry MRML data (volumes, segmentations, transforms, markups, models) between nodes.
 
-> Status: working prototype. The graph engine, all core editing
-> shortcuts, and ~15 node types are functional in Slicer 5.10
-> (Python 3.12 / PythonQt). Full procedural integration with MRML
-> observers and ephemeral intermediate nodes is in progress. See the
-> [procedural workflow analysis](docs/design/procedural_workflow_analysis.md)
-> for the design and current gaps.
-
----
-
-## Why
-
-3D Slicer is the standard tool for medical image processing, but its UX
-is built around one module at a time, modal Apply buttons, and growing
-clutter in the Data module as each step leaves its output behind. For
-multi-step workflows (load, register, resample, segment, render), that
-loop becomes the bottleneck.
-
-This extension keeps Slicer's MRML scene and all its modules, and exposes
-them through a graph editor at the bottom of the main window. Each node
-wraps a Slicer module; edges carry typed MRML data (volumes,
-segmentations, transforms, markups, models). Selecting a node either
-loads its native module's widget in the left panel (so you get the full
-Slicer UI for that operation), or shows a quick-edit form for nodes
-without a backing module. Pressing `1` through `0` routes a node's
-output to one of 10 viewer slots, the same way a procedural compositor
-routes through viewer slots.
-
----
-
-## Status
-
-| Area | What works |
-|---|---|
-| **Engine** | Custom PySide-compatible QGraphicsScene. Compositor-style pan/zoom, bezier pipes, type-checked port connections. |
-| **Editing** | Tab search popup, copy / cut / paste / undo / redo, shake-to-disconnect with splice-out, drag-into-pipe with live highlight. |
-| **Viewer routing** | 10 slots (`1` through `9`, plus `0`), per-slot badge color, visibility scoping (the volume you're viewing keeps its volume rendering; others hide). |
-| **Node library (~16 nodes)** | Sample Data, Load/Save Volume, Volumes, Threshold, Gaussian Smooth, Median Filter, Simple Filter (14 curated filters in one node: edge detection, denoising, morphology, intensity, N4 bias correction), Crop Volume, Markups, Segmentation, Segment Editor, Segmentations, Registration, Apply Transform, Transforms, Volume Rendering, Models, Layout (4-up). |
-| **Linked-module pattern** | Double-click any module-linked node and Slicer auto-switches to that module's native widget, pre-pointed at the node's input. |
-| **Persistent dock** | Canvas lives in a bottom dock widget that stays visible while you switch modules. |
-| **MRML hygiene** | Every graph-created MRML node is excluded from `.mrb` saves and grouped under a "Node Editor (auto)" folder, so the Data module stays clean. |
-| **Scene integration** | Upstream MRML edits (from any module or script) auto-mark downstream nodes dirty. Long-running CLI nodes execute asynchronously with a computing badge; failures show an error badge and stop their branch. The graph also travels inside `.mrb` saves and restores on import. |
-
-What's not yet built (see the [roadmap](ROADMAP.md) for full detail):
-4D sequence support, a cache eviction policy for large-volume chains,
-and surface-model / quantification nodes (Marching Cubes, Segment
-Statistics, Line Profile).
-
----
+Status: working prototype. Requires 3D Slicer 5.10.
 
 ## Install
 
-1. Clone this repo somewhere on disk.
-2. Open 3D Slicer (tested with 5.10).
-3. **Edit, Application Settings, Modules, Additional module paths.**
-4. Add the path to the `SlicerNodeEditor/` subfolder inside the clone.
-5. Restart Slicer.
-6. The "Node Editor" module is now available under the **Utilities**
-   category. Selecting it once docks the canvas at the bottom of the
-   main window, where it stays for the rest of the session.
-
-The extension does not require any extra Python packages. It talks to
-Slicer's bundled PythonQt and SimpleITK only.
-
----
+1. Clone this repository.
+2. In Slicer, open **Edit > Application Settings > Modules > Additional module paths**.
+3. Add the `SlicerNodeEditor/` folder from the clone.
+4. Restart Slicer.
+5. Open **Utilities > Node Editor**. The canvas docks at the bottom of the main window.
 
 ## Quick start
 
-1. Switch to the Node Editor module once to dock the canvas.
-2. Hover the canvas. Press `Tab`: the search popup appears.
-3. Type "sample" and click **Sample Data**. The node is placed and
-   selected; the left panel shows its dropdown.
-4. Pick MRHead from the dropdown. Press `1`. Slicer downloads and
-   loads MRHead into the slice views.
-5. With Sample Data still selected, hit `Tab` again and add **Volume
-   Rendering**. It auto-connects after the Sample Data node.
-6. Double-click the Volume Rendering node. The left panel switches to
-   Slicer's native Volume Rendering module, pre-configured for MRHead.
-7. Press `1` with the Volume Rendering node selected. Slicer switches
-   to the 3D view with the volume rendered. Pick a preset, tweak the
-   shift slider, and you're back in normal Slicer.
+1. Hover the canvas and press `Tab`.
+2. Type "sample" and pick **Sample Data**.
+3. Choose MRHead in the node's dropdown and press `1`.
+4. Press `Tab` and add **Volume Rendering**. It connects to the selected node.
+5. Press `1` with Volume Rendering selected.
 
----
+## Nodes
 
-## Keyboard reference
+| Node | Category | Description |
+|---|---|---|
+| Sample Data | I/O | Loads a Slicer sample volume. |
+| Load Volume | I/O | Loads a volume from a file path. |
+| Save Volume | I/O | Writes the input volume to a file path. |
+| Volumes | I/O | Opens the Volumes module on the input volume. |
+| Markups | I/O | Opens the Markups module on the input markup. |
+| Threshold | Filters | Keeps or masks voxels inside an intensity range. |
+| Gaussian Smooth | Filters | Smooths the input volume with a Gaussian kernel. |
+| Median Filter | Filters | Applies a median filter to the input volume. |
+| Simple Filter | Filters | Applies one of 14 SimpleITK filters, chosen from a dropdown. |
+| Crop Volume | Filters | Crops the input volume to an ROI through the Crop Volume module. |
+| Segmentation | Segmentation | Creates a segmentation from the input volume by threshold or Otsu. |
+| Segment Editor | Segmentation | Opens the Segment Editor on the input volume and segmentation. |
+| Segmentations | Segmentation | Opens the Segmentations module on the input segmentation. |
+| Registration | Registration | Registers a moving volume to a fixed volume with BRAINSFit. |
+| Apply Transform | Registration | Applies a transform to a copy of the input volume. |
+| Transforms | Registration | Opens the Transforms module on the input transform. |
+| Volume Rendering | Visualization | Renders the input volume in the 3D view. |
+| Models | Visualization | Opens the Models module on the input model. |
+| Layout | Layout | Routes up to four inputs to Slicer's views. |
+
+### Simple Filter
+
+| Group | Filters |
+|---|---|
+| Edges | Gradient Magnitude, Sobel, Canny |
+| Denoising | Curvature Flow, Anisotropic Diffusion |
+| Morphology | Opening, Closing, Fill Hole, Grind Peak |
+| Intensity | Invert, Rescale, Sigmoid, Laplacian Sharpening |
+| Bias correction | N4 |
+
+## Keys
 
 | Key | Action |
 |---|---|
-| `Tab` | Open node search popup at cursor |
-| `1` through `9`, `0` | Assign selected node to viewer slot 1 through 10 |
-| Double-click a node | Load its settings in the left panel |
-| Single-click | Select / drag (does NOT change the panel) |
-| `Ctrl+C` / `X` / `V` | Copy / cut / paste, preserves the selected subgraph including internal edges |
-| `Ctrl+Z` / `Y` | Undo / redo |
-| `Del` / `Backspace` | Delete selected nodes. Middle-of-pipe deletions splice the pipe back together. |
-| `F` | With a node selected: route its output to a single-pane fullscreen layout (3D-only for VR/Models, single slice for volume outputs). With nothing selected: frame all nodes in the canvas viewport. |
-| `D` | Disable / enable selected nodes (compositor-style passthrough). Disabled nodes skip their work and forward their input straight to their output. |
-| `Esc` | Deselect |
-| Scroll wheel | Zoom |
-| Middle-mouse drag | Pan |
-| Shake a node while dragging | Disconnect it from its edges (splices out cleanly if middle-of-pipe). |
-| Drag a fresh node onto an existing pipe | Inserts the node into the pipe (orange highlight previews the splice). |
+| `Tab` | Open the node search at the cursor. |
+| `1`..`9`, `0` | Assign the selected node to viewer slot 1..10 and display it. |
+| `F` | Show the selected node's output in a single view. With nothing selected, frame all nodes. |
+| `D` | Disable or enable the selected nodes. A disabled node passes its input through. |
+| `Del`, `Backspace` | Delete the selected nodes. A node between two nodes is spliced out. |
+| `Ctrl+C`, `Ctrl+X`, `Ctrl+V` | Copy, cut, paste. |
+| `Ctrl+Z`, `Ctrl+Y` | Undo, redo. |
+| `Esc` | Deselect. |
+| Double-click | Show the node's settings in the left panel. |
+| Scroll | Zoom. |
+| Middle-drag | Pan. |
+| Shake while dragging | Disconnect the node. |
+| Drop on an edge | Insert the node into the edge. |
 
----
+## Node badges
 
-## How it works
+| Badge | Meaning |
+|---|---|
+| Orange dot | Needs to re-run. |
+| Blue dot | Running. |
+| Red `!` | Last run failed. |
+| Amber `!` | Input changed under hand-edited data. |
+| Numbered circle | Assigned viewer slot. |
 
-- **`SlicerNodeEditor/`** is the Slicer scripted module. Entry point
-  (`SlicerNodeEditor.py`) creates the canvas dock and the properties
-  panel.
-- **`SlicerNodeEditor/NodeGraph/`** is the graph engine. Pure
-  `QGraphicsScene`-based, no third-party dependencies. The
-  `_qt.py` shim adapts to whichever Qt-Python binding Slicer's build
-  exposes (PythonQt, PySide2, or PySide6).
-- **`SlicerNodeEditor/Nodes/`** is the wrappers. Each file groups
-  related nodes (`io_nodes.py`, `filter_nodes.py`,
-  `segment_nodes.py`, `register_nodes.py`, `viz_nodes.py`,
-  `process_nodes.py`, `layout_node.py`). All extend `SlicerBaseNode`
-  or `LinkedModuleNode` from `base_node.py`.
-- **`docs/design/procedural_workflow_analysis.md`** is the long-form
-  design rationale comparing the pull-based evaluation model used by
-  procedural VFX compositors with Slicer's
-  MRML/module architecture, mapping every documented Slicer module
-  onto a procedural-fitness scale, and enumerating 13 edge cases to
-  pre-plan for.
+## Saving
 
-To add a node for module X: extend `LinkedModuleNode`, set
-`LINKED_MODULE = "ModuleName"`, declare `INPUT_PORTS` and `OUTPUT_PORTS`,
-and supply an `INPUT_SETTERS` dict mapping each input port to the
-module widget's setter method (for example,
-`'volume_in': 'setMRMLVolumeNode'`). The base class handles configuring
-the module widget when the node is selected.
+**Save Graph** and **Load Graph** write and read the graph as JSON. The graph is also stored in the scene, so it saves and loads with `.mrb` files. Nodes created by the graph are not saved with the scene; they are grouped under a "Node Editor (auto)" folder in the Data module.
 
----
+## Layout
 
-## Roadmap
+| Path | Contents |
+|---|---|
+| `SlicerNodeEditor/SlicerNodeEditor.py` | Module entry point, toolbar, properties panel, self-tests. |
+| `SlicerNodeEditor/NodeGraph/` | Canvas, scene, executor, viewer routing. |
+| `SlicerNodeEditor/Nodes/` | Node classes. |
+| `docs/design/` | Design notes. |
 
-See [ROADMAP.md](ROADMAP.md) for the phase-by-phase breakdown, and the
-[procedural workflow analysis](docs/design/procedural_workflow_analysis.md)
-for the deeper architectural plan.
+## Adding a node
 
-Headline near-term work:
+Subclass `SlicerBaseNode` and implement `execute(inputs)`, which returns `{port_name: mrml_node}`. To wrap a Slicer module instead, subclass `LinkedModuleNode` and set `LINKED_MODULE` and `INPUT_SETTERS`. Register the class in `Nodes/__init__.py`.
 
-1. **Cache eviction policy** so long chains on large volumes don't
-   hold every intermediate in memory.
-2. **Forward-fix for edited data** when upstream geometry changes:
-   offer to transform hand-edited segmentations and markups instead of
-   only warning that they may be misaligned.
-3. **UX items**: backdrop boxes, minimap, undo for moves and property
-   edits, drag a volume from the Data module onto the canvas.
+## Debugging
 
----
-
-## Compatibility
-
-- 3D Slicer **5.10** (the version this was developed and tested against).
-- Python **3.12** (Slicer's bundled interpreter).
-- Qt binding: **PythonQt** (what Slicer ships). The `_qt.py` shim also
-  contains PySide2/PySide6 import paths, but those are untested; treat
-  PythonQt as the supported binding.
-
-For troubleshooting (for example after a Slicer upgrade), set the
-environment variable `SLICER_NODE_EDITOR_DEBUG=1` before launching
-Slicer: normally-silent fallbacks (linked-module setter probing, MRML
-observer wiring) are then logged to the Python console. The module's
-self-tests run from the Reload & Test section of the module panel.
-
----
+Set `SLICER_NODE_EDITOR_DEBUG=1` before starting Slicer to log setter and observer failures. Self-tests run from **Reload & Test** on the Node Editor module (developer mode).
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE)

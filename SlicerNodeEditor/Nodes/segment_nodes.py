@@ -35,7 +35,7 @@ class SegmentationNode(SlicerBaseNode):
         upper  = self.get_property('upper')
 
         # Reuse the segmentation WE own (not whatever _cache currently
-        # holds — that may be an upstream ref left by passthrough).
+        # holds; that may be an upstream ref left by passthrough).
         seg = self._owned_outputs.get('seg_out')
         if seg is None or not slicer.mrmlScene.GetNodeByID(seg.GetID()):
             seg = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
@@ -96,7 +96,7 @@ class SegmentationNode(SlicerBaseNode):
 
 
 # ---------------------------------------------------------------------------
-# Segment Editor — linked to Slicer's "SegmentEditor" module
+# Segment Editor: linked to Slicer's "SegmentEditor" module
 # ---------------------------------------------------------------------------
 
 class SegmentEditorNode(LinkedModuleNode):
@@ -160,7 +160,7 @@ class SegmentEditorNode(LinkedModuleNode):
 
 
 # ---------------------------------------------------------------------------
-# Segmentations — linked to Slicer's "Segmentations" module
+# Segmentations: linked to Slicer's "Segmentations" module
 # ---------------------------------------------------------------------------
 
 class SegmentationsNode(LinkedModuleNode):

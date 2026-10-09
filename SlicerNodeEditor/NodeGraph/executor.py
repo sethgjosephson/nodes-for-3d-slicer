@@ -1,5 +1,5 @@
 """
-Executor — dirty-flag-aware lazy pipeline executor.
+Executor: dirty-flag-aware lazy pipeline executor.
 
 Only nodes that are dirty (and their dirty ancestors) are re-executed
 when a viewer slot is activated.  Clean nodes reuse their cached outputs.
@@ -63,7 +63,7 @@ class Executor:
                     blocked.add(node_item)
 
     # ------------------------------------------------------------------
-    # Internal — graph traversal
+    # Internal: graph traversal
     # ------------------------------------------------------------------
 
     def _ancestors_including(self, node_item):
@@ -105,12 +105,12 @@ class Executor:
 
         if len(result) != len(node_set):
             raise RuntimeError(
-                "Node graph contains a cycle — cannot execute.")
+                "Node graph contains a cycle; cannot execute.")
 
         return result
 
     # ------------------------------------------------------------------
-    # Internal — single node execution
+    # Internal: single node execution
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -118,7 +118,7 @@ class Executor:
         """
         For each OUTPUT_PORT, find the first INPUT_PORT with a
         type-compatible value and forward it through.  Used when a
-        node is disabled (compositor-style D-key) — the node becomes a
+        node is disabled (D key): the node becomes a
         no-op, downstream sees the unprocessed upstream data.
         """
         result = {}
@@ -165,7 +165,7 @@ class Executor:
 
         # Stash the NodeItem so async callbacks (e.g. CLI completion
         # observers) can find their visual node back.  The reference is
-        # not weak — if the user deletes the node the callback's
+        # not weak; if the user deletes the node the callback's
         # node_item.update() is a Qt no-op on a removed item.
         node_data._executing_node_item = node_item
 
@@ -176,7 +176,7 @@ class Executor:
         passthrough = bool(getattr(node_data, 'is_disabled', False))
         try:
             if passthrough:
-                # Compositor-style passthrough: skip this node's work, forward
+                # Passthrough: skip this node's work, forward
                 # the first type-compatible input to each output.
                 result = self._passthrough(node_data, inputs)
             else:

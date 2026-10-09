@@ -1,8 +1,8 @@
 """
-SlicerNodeEditor — node-based procedural workflow pipeline for 3D Slicer.
+SlicerNodeEditor: node-graph editor for 3D Slicer.
 
-Module entry point.  The widget embeds the NodeEditorCanvas (PySide2
-QGraphicsView) and a collapsible properties panel that shows the
+Module entry point.  The widget embeds the NodeEditorCanvas
+(QGraphicsView) and a collapsible properties panel that shows the
 selected node's parameters.
 """
 
@@ -34,17 +34,17 @@ class SlicerNodeEditor(ScriptedLoadableModule):
         parent.dependencies = []
         parent.contributors = ["Seth Rivers"]
         parent.helpText = (
-            "A procedural node-graph interface for 3D Slicer, in the "
-            "style of visual-effects compositing software.\n\n"
-            "• Tab     — search and place nodes\n"
-            "• 1..9, 0 — assign selected node to viewer slot 1..10\n"
-            "• Double-click a node — load its settings in the left panel\n"
-            "• Ctrl+C/X/V — copy / cut / paste\n"
-            "• Ctrl+Z/Y   — undo / redo\n"
-            "• F       — fullscreen the selected node's output, or frame canvas if nothing is selected\n"
-            "• D       — disable / enable selected nodes (passthrough)\n"
-            "• Del     — delete selected nodes\n"
-            "• Scroll — zoom  |  Middle-drag — pan"
+            "A node-graph editor for 3D Slicer. Each node wraps a Slicer "
+            "operation; edges carry MRML data between nodes.\n\n"
+            "• Tab: search and place nodes\n"
+            "• 1..9, 0: assign selected node to viewer slot 1..10\n"
+            "• Double-click a node: load its settings in the left panel\n"
+            "• Ctrl+C/X/V: copy / cut / paste\n"
+            "• Ctrl+Z/Y: undo / redo\n"
+            "• F: fullscreen the selected node's output, or frame canvas if nothing is selected\n"
+            "• D: disable / enable selected nodes (passthrough)\n"
+            "• Del: delete selected nodes\n"
+            "• Scroll: zoom  |  Middle-drag: pan"
         )
         parent.acknowledgementText = ""
 
@@ -114,7 +114,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.layout.addWidget(toolbar_widget)
 
-        # --- Canvas — lives in a bottom dock widget, NOT module panel
+        # --- Canvas: lives in a bottom dock widget, NOT module panel
         from NodeGraph import NodeEditorCanvas, Executor, ViewerSlotManager
         from Nodes     import ALL_NODE_CLASSES
 
@@ -251,7 +251,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self._props_collapsible.collapsed = True
             return
 
-        self._props_collapsible.text      = f"Properties — {node_item.node_data.NODE_NAME}"
+        self._props_collapsible.text      = f"Properties: {node_item.node_data.NODE_NAME}"
         self._props_collapsible.collapsed = False
 
         # Give the node a chance to provide a fully-custom widget
@@ -438,7 +438,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def _on_clear(self):
         """Toolbar Clear button: user-initiated, wipe everything."""
         self._clear_graph()
-        # An empty graph IS a meaningful state — sync it so the .mrb
+        # An empty graph IS a meaningful state; sync it so the .mrb
         # doesn't keep a stale serialised graph from before the clear.
         if self._canvas is not None and self._canvas.node_scene is not None:
             self._canvas.node_scene.notify_mutation()
@@ -702,7 +702,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def _clear_graph(self):
         """Tear down every node, reset router slots, clear undo / redo /
         clipboard, and blank the properties panel.  Used by the Clear
-        toolbar button — the explicit "throw it all away" action."""
+        toolbar button, the explicit "throw it all away" action."""
         scene = self._canvas.node_scene if self._canvas is not None else None
         if scene is None:
             return
@@ -736,13 +736,13 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def enter(self):
         # Bring the canvas dock to the front when the user is on this module,
-        # but never hide it — the canvas is meant to be persistent across modules.
+        # but never hide it; the canvas is meant to be persistent across modules.
         if self._dock is not None:
             self._dock.show()
             self._dock.raise_()
 
     def exit(self):
-        # Intentionally do NOT hide the dock — keep it visible across modules.
+        # Intentionally do NOT hide the dock; keep it visible across modules.
         pass
 
     def cleanup(self):
@@ -773,7 +773,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 # ---------------------------------------------------------------------------
-# Logic  (thin stub — all logic lives in the graph/nodes)
+# Logic  (thin stub; all logic lives in the graph/nodes)
 # ---------------------------------------------------------------------------
 
 class SlicerNodeEditorLogic(ScriptedLoadableModuleLogic):

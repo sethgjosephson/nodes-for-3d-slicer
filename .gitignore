@@ -35,7 +35,7 @@ build/
 Slicer-build/
 
 # Docs (large reference folders - keep out of git)
-docs/nuke_reference/
+docs/*_reference/
 docs/slicer_api_cache/
 
 # Personal notes / research - local only, not for the public repo

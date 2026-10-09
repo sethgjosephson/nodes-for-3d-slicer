@@ -1,5 +1,5 @@
 """
-NodeItem — QGraphicsObject wrapping a SlicerBaseNode for canvas display.
+NodeItem: QGraphicsObject wrapping a SlicerBaseNode for canvas display.
 
 Layout (vertical pipeline, top-to-bottom data flow):
 
@@ -208,7 +208,7 @@ class NodeItem(QGraphicsObject):
     # ------------------------------------------------------------------
 
     def mousePressEvent(self, event):
-        # Single click only selects / starts drag — the left panel does
+        # Single click only selects / starts drag; the left panel does
         # NOT update.  That happens on double-click.
         QGraphicsObject.mousePressEvent(self, event)
 

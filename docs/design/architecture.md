@@ -1,106 +1,65 @@
-# Architecture: Nodes for 3D Slicer
+# Architecture
 
-## Overview
+A 3D Slicer scripted module. Nodes on a canvas wrap Slicer operations; the executor runs them in dependency order and passes MRML nodes along edges.
 
-A 3D Slicer scripted-module extension that replaces the traditional panel-based
-workflow with a procedural node graph in the style of visual-effects compositing
-software. Users drag nodes onto a canvas, wire them together, and execute the
-graph — Slicer's underlying CLI modules and Python API do the actual work,
-completely unchanged.
-
----
-
-## Stack Constraints
+## Stack
 
 | Layer | Version |
 |---|---|
-| 3D Slicer | 5.x |
-| Python | 3.9 (bundled) |
-| Qt | 5.15.2 (bundled) |
-| Python Qt binding | PySide2 5.15 (bundled) |
-| Node graph library | NodeGraphQt (PySide2-native) |
+| 3D Slicer | 5.10 |
+| Python | 3.12 (bundled) |
+| Qt binding | PythonQt (`import qt`) |
+| Image processing | SimpleITK, Slicer CLI modules |
 
-**Critical:** Do NOT install a different Qt or PySide2. Everything must use
-Slicer's bundled copies.
-
----
-
-## Component Map
+## Components
 
 ```
-SlicerNodeEditor.py          Slicer module entry point
-│
-├── NodeGraph/
-│   ├── canvas.py            NodeGraphQt graph + context menus
-│   ├── node.py              SlicerBaseNode (all nodes inherit this)
-│   ├── port.py              Port type constants (VOLUME, SEGMENTATION, …)
-│   ├── edge.py              (future) custom edge rendering / validation
-│   └── executor.py          Topological sort + execute() dispatch
-│
-└── Nodes/
-    ├── io_nodes.py          Load Volume, Save Volume
-    ├── filter_nodes.py      Threshold, Gaussian Smooth, (more)
-    ├── segment_nodes.py     Segmentation
-    ├── register_nodes.py    Registration (BrainsFit)
-    └── viz_nodes.py         Volume Rendering
+SlicerNodeEditor.py      module entry point, toolbar, properties panel, self-tests
+NodeGraph/
+  _qt.py                 PythonQt shim
+  canvas.py              QGraphicsView: pan, zoom, keys, clipboard
+  scene.py               QGraphicsScene: nodes, edges, undo, serialization
+  node_item.py           node drawing and badges
+  port_item.py           port drawing
+  edge_item.py           edge drawing
+  search_popup.py        Tab search
+  executor.py            topological execution with dirty tracking
+  viewer_router.py       viewer slots 1..10
+Nodes/
+  base_node.py           SlicerBaseNode, LinkedModuleNode, port types
+  io_nodes.py            Sample Data, Load / Save Volume, Volumes, Markups
+  filter_nodes.py        Threshold, Gaussian Smooth, Median Filter
+  simple_filter_node.py  Simple Filter
+  process_nodes.py       Crop Volume
+  segment_nodes.py       Segmentation, Segment Editor, Segmentations
+  register_nodes.py      Registration, Apply Transform, Transforms
+  viz_nodes.py           Volume Rendering, Models
+  layout_node.py         Layout
+  __init__.py            node registry
 ```
 
----
+## Execution
 
-## Data Flow
+- Each port carries an MRML node reference in memory.
+- Pressing a slot key runs the dirty ancestors of the selected node, then the node, then routes its output to the views.
+- A node keeps the MRML nodes it creates in `_owned_outputs` and reuses them on later runs.
+- A failed or still-running node blocks its descendants for that run.
+- Each node observes its input MRML nodes and marks itself and its descendants dirty when they change.
 
-```
-[Load Volume] ──volume──► [Threshold] ──volume──► [Gaussian Smooth] ──volume──► [Volume Rendering]
-                                                         │
-                                                         └──volume──► [Save Volume]
-```
+## Node definition
 
-- Each port carries a **vtkMRMLNode reference** (by object, passed in-memory).
-- The executor resolves the DAG topologically, calls `node.execute(inputs)`,
-  and forwards its output dict to connected downstream nodes.
-- Nodes read parameters from NodeGraphQt's built-in property widgets
-  (text inputs, float sliders, combo menus).
-
----
-
-## Node Authoring Pattern
-
-```python
-class MyFilterNode(SlicerBaseNode):
-    __identifier__ = "slicer.filters"   # must be unique per category
-    NODE_NAME = "My Filter"
-    NODE_COLOR = (100, 130, 80)
-
-    INPUT_PORTS  = [("volume_in",  "Volume")]
-    OUTPUT_PORTS = [("volume_out", "Volume")]
-
-    def __init__(self):
-        super().__init__()
-        self.add_float_input("strength", "Strength", value=1.0)
-
-    def execute(self, inputs):
-        node = inputs["volume_in"]
-        # ... call slicer.cli.run() or SimpleITK here ...
-        return {"volume_out": output_node}
-```
-
-Register the new class in `canvas.py:_ALL_NODE_TYPES` and it appears in the
-right-click context menu automatically.
-
----
+| Attribute | Purpose |
+|---|---|
+| `NODE_NAME`, `CATEGORY` | Name and search category. |
+| `INPUT_PORTS`, `OUTPUT_PORTS` | `(name, label, type)` tuples. |
+| `PROPERTIES` | Parameters; the properties panel is built from these. |
+| `execute(inputs)` | Returns `{port_name: mrml_node}`. |
+| `route_to_viewer()` | Shows the output for a slot key. |
+| `AUTO_EXECUTE` | False keeps the node out of re-runs triggered by property changes. |
+| `EDIT_STATE` | True for nodes holding hand-edited data. |
+| `LINKED_MODULE`, `INPUT_SETTERS` | `LinkedModuleNode` only: module to open and the widget setters for each input. |
+| `NODE_TYPE` | Type id written to graph files; defaults to the class name. |
 
 ## Serialization
 
-NodeGraphQt serializes the graph to JSON natively (`graph.save_session(path)`).
-The JSON stores node types, positions, property values, and connections.
-Graphs can be reloaded with `graph.load_session(path)` — the executor re-runs
-them from scratch (non-destructive / procedural).
-
-Future: embed graph JSON in a `vtkMRMLScriptedModuleNode` so it travels with
-the Slicer `.mrb` scene file.
-
----
-
-## Milestones
-
-See `ROADMAP.md` for the full phased plan.
+`scene.serialise()` returns a dict with a format `version`, nodes (type, position, properties, slot, disabled), and edges. The module writes it to JSON files and to a `vtkMRMLScriptedModuleNode` in the scene so it saves with `.mrb` files.
