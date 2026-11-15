@@ -46,6 +46,7 @@
 - [x] New Markup, Save Data
 - [x] Segment Filter, Mask Volume, Label Map to Segmentation
 - [x] Surface Model, Segment Statistics
+- [x] Diffusion: Sample DWI, DWI Mask, Tensor Estimation, Tensor Scalars, Tractography, Tractography Display, Fiber Measurements
 - [x] Segmentation, Segment Editor, Segmentations
 - [x] Registration (BRAINSFit, async), Apply Transform, Transforms
 - [x] Volume Rendering, Models, Volumes, Markups
@@ -55,6 +56,7 @@
 - [x] Self-tests for scene, nodes, edges, execution, failure isolation, Simple Filter, volume rendering display node, and serialization
 - [x] `SLICER_NODE_EDITOR_DEBUG=1` logging switch
 - [x] Workflow tests that drive the canvas inside Slicer (`tests/`)
+- [x] Example graphs (`examples/`)
 
 ## Planned
 
@@ -72,6 +74,9 @@
 - [ ] Grow from Seeds
 - [ ] Apply Transform for segmentations, models and markups
 - [ ] Line Profile
+- [ ] Load DWI from a file, DICOM to DWI conversion
+- [ ] Two-tensor tractography (UKF), interactive seeding from a markup
+- [ ] Skull stripping, FreeSurfer import
 - [ ] DICOM loader
 - [ ] Python script
 - [ ] Generic CLI module

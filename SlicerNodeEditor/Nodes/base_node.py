@@ -41,6 +41,9 @@ PLOT          = "plot"
 TEXT          = "text"
 COLOR         = "color"
 SEQUENCE      = "sequence"   # reserved for Phase F (4D data)
+DWI           = "dwi"        # diffusion-weighted volume
+TENSOR        = "tensor"     # diffusion tensor volume
+FIBERS        = "fibers"     # fiber bundle (tractography)
 ANY           = "any"
 
 

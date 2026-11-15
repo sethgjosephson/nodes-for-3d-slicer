@@ -1,0 +1,188 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": 0,
+      "type": "SampleDWINode",
+      "class": "SampleDWINode",
+      "module": "Nodes.diffusion_nodes",
+      "x": 0.0,
+      "y": 0.0,
+      "props": {},
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 1,
+      "type": "DWIMaskNode",
+      "class": "DWIMaskNode",
+      "module": "Nodes.diffusion_nodes",
+      "x": 260.0,
+      "y": 130.0,
+      "props": {
+        "remove_islands": true
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 2,
+      "type": "TensorEstimationNode",
+      "class": "TensorEstimationNode",
+      "module": "Nodes.diffusion_nodes",
+      "x": 0.0,
+      "y": 260.0,
+      "props": {
+        "method": "LS",
+        "shift_negative": false
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 3,
+      "type": "TensorScalarsNode",
+      "class": "TensorScalarsNode",
+      "module": "Nodes.diffusion_nodes",
+      "x": -260.0,
+      "y": 400.0,
+      "props": {
+        "operation": "FractionalAnisotropy"
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 4,
+      "type": "TensorScalarsNode",
+      "class": "TensorScalarsNode",
+      "module": "Nodes.diffusion_nodes",
+      "x": 0.0,
+      "y": 400.0,
+      "props": {
+        "operation": "Trace"
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 5,
+      "type": "ThresholdNode",
+      "class": "ThresholdNode",
+      "module": "Nodes.filter_nodes",
+      "x": -260.0,
+      "y": 540.0,
+      "props": {
+        "mode": "Binary mask",
+        "lower": 0.45,
+        "upper": 1.5,
+        "outside": 0,
+        "inside": 1
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 6,
+      "type": "TractographyNode",
+      "class": "TractographyNode",
+      "module": "Nodes.diffusion_nodes",
+      "x": -130.0,
+      "y": 680.0,
+      "props": {
+        "seed_label": 1,
+        "seed_spacing": 3.0,
+        "start_fa": 0.3,
+        "stop_fa": 0.25,
+        "min_length": 80.0,
+        "max_length": 800.0
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 7,
+      "type": "TractographyDisplayNode",
+      "class": "TractographyDisplayNode",
+      "module": "Nodes.diffusion_nodes",
+      "x": -260.0,
+      "y": 820.0,
+      "props": {},
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 8,
+      "type": "FiberMeasurementsNode",
+      "class": "FiberMeasurementsNode",
+      "module": "Nodes.diffusion_nodes",
+      "x": 130.0,
+      "y": 820.0,
+      "props": {},
+      "slot": null,
+      "disabled": false
+    }
+  ],
+  "edges": [
+    {
+      "src_node": 0,
+      "src_port": "dwi_out",
+      "dst_node": 1,
+      "dst_port": "dwi_in"
+    },
+    {
+      "src_node": 0,
+      "src_port": "dwi_out",
+      "dst_node": 2,
+      "dst_port": "dwi_in"
+    },
+    {
+      "src_node": 1,
+      "src_port": "mask_out",
+      "dst_node": 2,
+      "dst_port": "mask_in"
+    },
+    {
+      "src_node": 2,
+      "src_port": "tensor_out",
+      "dst_node": 3,
+      "dst_port": "tensor_in"
+    },
+    {
+      "src_node": 2,
+      "src_port": "tensor_out",
+      "dst_node": 4,
+      "dst_port": "tensor_in"
+    },
+    {
+      "src_node": 3,
+      "src_port": "volume_out",
+      "dst_node": 5,
+      "dst_port": "volume_in"
+    },
+    {
+      "src_node": 2,
+      "src_port": "tensor_out",
+      "dst_node": 6,
+      "dst_port": "tensor_in"
+    },
+    {
+      "src_node": 5,
+      "src_port": "volume_out",
+      "dst_node": 6,
+      "dst_port": "seed_in"
+    },
+    {
+      "src_node": 6,
+      "src_port": "fibers_out",
+      "dst_node": 7,
+      "dst_port": "fibers_in"
+    },
+    {
+      "src_node": 6,
+      "src_port": "fibers_out",
+      "dst_node": 8,
+      "dst_port": "fibers_in"
+    }
+  ]
+}

@@ -44,6 +44,7 @@ CAT_COLOR = {
     "Segmentation":  (98,  48,  98),
     "Registration":  (115, 85,  28),
     "Measure":       (120, 62,  52),
+    "Diffusion":     (38,  84,  96),
     "Visualization": (28,  98, 108),
     "Layout":        (72,  72,  72),
     "Utilities":     (68,  68,  68),
@@ -69,6 +70,9 @@ PORT_COLORS = {
     "text":         (185, 185, 185),   # light grey
     "color":        (140, 110, 200),   # purple
     "sequence":     ( 90, 130, 235),   # bright blue (reserved for 4D)
+    "dwi":          (225, 130, 110),   # salmon
+    "tensor":       (235, 110, 190),   # rose
+    "fibers":       (130, 215, 120),   # light green
     "any":          (160, 160, 160),   # mid grey
 }
 

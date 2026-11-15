@@ -1,6 +1,6 @@
 # Nodes for 3D Slicer
 
-A node-graph editor for [3D Slicer](https://slicer.org). Each node wraps a Slicer operation. Edges carry MRML data (volumes, segmentations, transforms, markups, models) between nodes.
+A node-graph editor for [3D Slicer](https://slicer.org). Each node wraps a Slicer operation. Edges carry MRML data (volumes, segmentations, transforms, markups, models, tables, diffusion volumes, fiber bundles) between nodes.
 
 Status: working prototype. Requires 3D Slicer 5.10.
 
@@ -45,6 +45,13 @@ Status: working prototype. Requires 3D Slicer 5.10.
 | Label Map to Segmentation | Segmentation | Creates one segment per label value of the input volume. |
 | Surface Model | Segmentation | Builds a surface model from a segmentation. |
 | Segment Statistics | Measure | Computes per-segment statistics into a table. |
+| Fiber Measurements | Measure | Measures a fiber bundle into a table. |
+| Sample DWI | Diffusion | Loads Slicer's sample diffusion-weighted volume. |
+| DWI Mask | Diffusion | Makes a brain mask and a baseline image from a DWI. |
+| Tensor Estimation | Diffusion | Fits a diffusion tensor to a DWI. |
+| Tensor Scalars | Diffusion | Computes one scalar map (FA, MD and others) from a tensor volume. |
+| Tractography | Diffusion | Seeds streamlines in a tensor volume from a label region. |
+| Tractography Display | Diffusion | Opens the Tractography Display module on the input fibers. |
 | Registration | Registration | Registers a moving volume to a fixed volume with BRAINSFit. |
 | Apply Transform | Registration | Applies a transform to a copy of the input volume. |
 | Resample Volume | Registration | Resamples a volume onto a reference grid, optionally through a transform. |
@@ -52,6 +59,8 @@ Status: working prototype. Requires 3D Slicer 5.10.
 | Volume Rendering | Visualization | Renders the input volume in the 3D view. |
 | Models | Visualization | Opens the Models module on the input model. |
 | Layout | Layout | Routes up to four inputs to Slicer's views. |
+
+The Diffusion nodes and Fiber Measurements run modules of the SlicerDMRI extension.
 
 ### Simple Filter
 
@@ -110,6 +119,17 @@ Status: working prototype. Requires 3D Slicer 5.10.
 
 Hand-placed markups and the Crop Volume ROI are saved in the graph. Deleting a node removes the data it created from the scene.
 
+## Examples
+
+Load these with **Load Graph**, then press **Execute All**.
+
+| File | Graph |
+|---|---|
+| `examples/roi_crop.json` | A placed ROI markup crops a volume. |
+| `examples/segment_measure_surface.json` | Threshold segmentation, island and smoothing clean-up, statistics table, surface model, masked volume. |
+| `examples/registration_and_change.json` | Two timepoints registered, resampled onto one grid and subtracted; a label volume carried across with the same transform. |
+| `examples/diffusion_tractography.json` | DWI to mask, tensor, FA and trace maps, tractography and fiber measurements. |
+
 ## Layout
 
 | Path | Contents |
@@ -118,6 +138,7 @@ Hand-placed markups and the Crop Volume ROI are saved in the graph. Deleting a n
 | `SlicerNodeEditor/NodeGraph/` | Canvas, scene, executor, viewer routing. |
 | `SlicerNodeEditor/Nodes/` | Node classes. |
 | `docs/design/` | Design notes. |
+| `examples/` | Example graphs. |
 | `tests/` | Workflow tests that run inside Slicer. |
 
 ## Adding a node
@@ -135,7 +156,7 @@ Set `SLICER_NODE_EDITOR_DEBUG=1` before starting Slicer to log setter and observ
 | `bash tests/run.sh tests/workflows/NAME.py` | One workflow test in its own Slicer session. |
 | `bash tests/run_all.sh` | Every workflow test, with a pass and fail summary. |
 
-Logs and screenshots are written to `tests/out/NAME/`. The tests download Slicer sample data on first use. Set `SLICER` to the path of `Slicer.exe` to use a different install.
+Logs and screenshots are written to `tests/out/NAME/`. The tests download Slicer sample data on first use. Set `SLICER` to the path of `Slicer.exe` to use a different install. A test that needs an extension is skipped when the extension is not installed.
 
 ## License
 

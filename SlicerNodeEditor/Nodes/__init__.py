@@ -10,6 +10,10 @@ from .segment_ops_nodes import (SegmentFilterNode, SurfaceModelNode,
                                  LabelMapToSegmentationNode)
 from .register_nodes import RegistrationNode, ApplyTransformNode, TransformsNode
 from .resample_nodes import ResampleVolumeNode, VolumeMathNode
+from .diffusion_nodes import (SampleDWINode, DWIMaskNode,
+                               TensorEstimationNode, TensorScalarsNode,
+                               TractographyNode, TractographyDisplayNode,
+                               FiberMeasurementsNode)
 from .viz_nodes      import VolumeRenderingNode, ModelsNode
 from .layout_node    import LayoutNode
 from .process_nodes  import CropVolumeNode
@@ -41,6 +45,14 @@ ALL_NODE_CLASSES = [
     SurfaceModelNode,
     # Measurement
     SegmentStatisticsNode,
+    FiberMeasurementsNode,
+    # Diffusion MRI (SlicerDMRI extension)
+    SampleDWINode,
+    DWIMaskNode,
+    TensorEstimationNode,
+    TensorScalarsNode,
+    TractographyNode,
+    TractographyDisplayNode,
     # Registration / transforms
     RegistrationNode,
     ApplyTransformNode,

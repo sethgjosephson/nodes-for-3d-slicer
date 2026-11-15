@@ -1,0 +1,189 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": 0,
+      "type": "SampleDataNode",
+      "class": "SampleDataNode",
+      "module": "Nodes.io_nodes",
+      "x": -260.0,
+      "y": 0.0,
+      "props": {
+        "sample": "MRBrainTumor1"
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 1,
+      "type": "SampleDataNode",
+      "class": "SampleDataNode",
+      "module": "Nodes.io_nodes",
+      "x": 260.0,
+      "y": 0.0,
+      "props": {
+        "sample": "MRBrainTumor2"
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 2,
+      "type": "RegistrationNode",
+      "class": "RegistrationNode",
+      "module": "Nodes.register_nodes",
+      "x": 0.0,
+      "y": 150.0,
+      "props": {
+        "type": "Rigid",
+        "sampling": 0.02,
+        "init_mode": "useGeometryAlign"
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 3,
+      "type": "ResampleVolumeNode",
+      "class": "ResampleVolumeNode",
+      "module": "Nodes.resample_nodes",
+      "x": 260.0,
+      "y": 300.0,
+      "props": {
+        "interpolation": "Linear",
+        "background": 0.0
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 4,
+      "type": "VolumeMathNode",
+      "class": "VolumeMathNode",
+      "module": "Nodes.resample_nodes",
+      "x": 0.0,
+      "y": 450.0,
+      "props": {
+        "operation": "A - B"
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 5,
+      "type": "ThresholdNode",
+      "class": "ThresholdNode",
+      "module": "Nodes.filter_nodes",
+      "x": 520.0,
+      "y": 150.0,
+      "props": {
+        "mode": "Binary mask",
+        "lower": 200.0,
+        "upper": 5000.0,
+        "outside": 0,
+        "inside": 7
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 6,
+      "type": "ResampleVolumeNode",
+      "class": "ResampleVolumeNode",
+      "module": "Nodes.resample_nodes",
+      "x": 520.0,
+      "y": 300.0,
+      "props": {
+        "interpolation": "Nearest Neighbor",
+        "background": 0.0
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 7,
+      "type": "LabelMapToSegmentationNode",
+      "class": "LabelMapToSegmentationNode",
+      "module": "Nodes.segment_ops_nodes",
+      "x": 520.0,
+      "y": 450.0,
+      "props": {},
+      "slot": null,
+      "disabled": false
+    }
+  ],
+  "edges": [
+    {
+      "src_node": 0,
+      "src_port": "volume_out",
+      "dst_node": 2,
+      "dst_port": "fixed_in"
+    },
+    {
+      "src_node": 1,
+      "src_port": "volume_out",
+      "dst_node": 2,
+      "dst_port": "moving_in"
+    },
+    {
+      "src_node": 1,
+      "src_port": "volume_out",
+      "dst_node": 3,
+      "dst_port": "volume_in"
+    },
+    {
+      "src_node": 0,
+      "src_port": "volume_out",
+      "dst_node": 3,
+      "dst_port": "reference_in"
+    },
+    {
+      "src_node": 2,
+      "src_port": "transform_out",
+      "dst_node": 3,
+      "dst_port": "transform_in"
+    },
+    {
+      "src_node": 3,
+      "src_port": "volume_out",
+      "dst_node": 4,
+      "dst_port": "a_in"
+    },
+    {
+      "src_node": 0,
+      "src_port": "volume_out",
+      "dst_node": 4,
+      "dst_port": "b_in"
+    },
+    {
+      "src_node": 1,
+      "src_port": "volume_out",
+      "dst_node": 5,
+      "dst_port": "volume_in"
+    },
+    {
+      "src_node": 5,
+      "src_port": "volume_out",
+      "dst_node": 6,
+      "dst_port": "volume_in"
+    },
+    {
+      "src_node": 0,
+      "src_port": "volume_out",
+      "dst_node": 6,
+      "dst_port": "reference_in"
+    },
+    {
+      "src_node": 2,
+      "src_port": "transform_out",
+      "dst_node": 6,
+      "dst_port": "transform_in"
+    },
+    {
+      "src_node": 6,
+      "src_port": "volume_out",
+      "dst_node": 7,
+      "dst_port": "volume_in"
+    }
+  ]
+}

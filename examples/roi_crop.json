@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": 0,
+      "type": "SampleDataNode",
+      "class": "SampleDataNode",
+      "module": "Nodes.io_nodes",
+      "x": 0.0,
+      "y": 0.0,
+      "props": {
+        "sample": "MRHead"
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 1,
+      "type": "NewMarkupNode",
+      "class": "NewMarkupNode",
+      "module": "Nodes.io_nodes",
+      "x": 260.0,
+      "y": 0.0,
+      "props": {
+        "kind": "ROI",
+        "name": "Crop box",
+        "points": [
+          [
+            0.0,
+            20.0,
+            10.0
+          ]
+        ],
+        "roi_size": [
+          40.0,
+          40.0,
+          40.0
+        ]
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 2,
+      "type": "CropVolumeNode",
+      "class": "CropVolumeNode",
+      "module": "Nodes.process_nodes",
+      "x": 0.0,
+      "y": 160.0,
+      "props": {
+        "isotropic": false,
+        "spacing": 1.0
+      },
+      "slot": null,
+      "disabled": false
+    },
+    {
+      "id": 3,
+      "type": "MarkupsNode",
+      "class": "MarkupsNode",
+      "module": "Nodes.io_nodes",
+      "x": 260.0,
+      "y": 160.0,
+      "props": {},
+      "slot": null,
+      "disabled": false
+    }
+  ],
+  "edges": [
+    {
+      "src_node": 0,
+      "src_port": "volume_out",
+      "dst_node": 2,
+      "dst_port": "volume_in"
+    },
+    {
+      "src_node": 1,
+      "src_port": "markup_out",
+      "dst_node": 2,
+      "dst_port": "roi_in"
+    },
+    {
+      "src_node": 1,
+      "src_port": "markup_out",
+      "dst_node": 3,
+      "dst_port": "markup_in"
+    }
+  ]
+}

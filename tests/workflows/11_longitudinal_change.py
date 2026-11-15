@@ -99,6 +99,9 @@ check(seg.GetSegmentation().GetNumberOfSegments() == 1,
 check(len(slicer.util.getNodesByClass('vtkMRMLCommandLineModuleNode')) == 1,
       "one transform served both branches without a second registration")
 
+import os
+g.save(os.path.join(OUT_DIR, 'longitudinal.json'))
+
 section("every math operation")
 from Nodes.resample_nodes import MATH_OPERATIONS
 diff = g.by_name('Volume Math')
