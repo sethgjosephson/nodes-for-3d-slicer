@@ -9,6 +9,7 @@ from .segment_ops_nodes import (SegmentFilterNode, SurfaceModelNode,
                                  SegmentStatisticsNode, MaskVolumeNode,
                                  LabelMapToSegmentationNode)
 from .register_nodes import RegistrationNode, ApplyTransformNode, TransformsNode
+from .resample_nodes import ResampleVolumeNode, VolumeMathNode
 from .viz_nodes      import VolumeRenderingNode, ModelsNode
 from .layout_node    import LayoutNode
 from .process_nodes  import CropVolumeNode
@@ -28,6 +29,7 @@ ALL_NODE_CLASSES = [
     GaussianSmoothNode,
     MedianFilterNode,
     SimpleFilterNode,
+    VolumeMathNode,
     CropVolumeNode,
     # Segmentation
     SegmentationNode,
@@ -42,6 +44,7 @@ ALL_NODE_CLASSES = [
     # Registration / transforms
     RegistrationNode,
     ApplyTransformNode,
+    ResampleVolumeNode,
     TransformsNode,
     # Visualization
     VolumeRenderingNode,
