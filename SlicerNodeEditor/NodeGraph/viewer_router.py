@@ -72,7 +72,9 @@ class ViewerSlotManager:
             traceback.print_exc()
             slicer.util.errorDisplay(f"Execution failed: {exc}")
             return
-        if self._shown_ids(nd) != before:
+        if (self._shown_ids(nd) != before
+                or (getattr(nd, 'ROUTE_ON_PROPERTY_CHANGE', False)
+                    and dict(nd._props) != getattr(nd, '_routed_props', None))):
             self._display(node_item)
 
     @staticmethod
@@ -121,6 +123,7 @@ class ViewerSlotManager:
 
         try:
             print(f"[NodeEditor] calling route_to_viewer on '{nd.NODE_NAME}'")
+            nd._routed_props = dict(nd._props)
             nd.route_to_viewer()
             print(f"[NodeEditor] route_to_viewer returned")
         except Exception as exc:

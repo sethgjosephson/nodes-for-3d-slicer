@@ -321,6 +321,12 @@ class SlicerBaseNode:
     # require running them.
     AUTO_EXECUTE = True
 
+    # After an automatic re-run the views are left alone unless the node
+    # now shows a different MRML node, so the user keeps their zoom, pan
+    # and layout while dragging a slider. Set True on a node whose own
+    # properties decide what the views show (a layout choice).
+    ROUTE_ON_PROPERTY_CHANGE = False
+
     # ------------------------------------------------------------------
 
     def __init__(self):

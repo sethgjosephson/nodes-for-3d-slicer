@@ -13,7 +13,8 @@ render_in → 3D view (volume rendering, optional)
 """
 
 import slicer
-from .base_node import SlicerBaseNode, VOLUME
+from .base_node import (SlicerBaseNode, VOLUME, _mark_ephemeral,
+                         _remove_mrml_node)
 
 
 class LayoutNode(SlicerBaseNode):
@@ -36,6 +37,10 @@ class LayoutNode(SlicerBaseNode):
                    'Side By Side', '3D Only']},
     ]
 
+    # The layout is this node's own setting: changing it must route the
+    # views again even though the data shown is the same.
+    ROUTE_ON_PROPERTY_CHANGE = True
+
     _LAYOUT_MAP = None  # populated lazily at first use
 
     @classmethod
@@ -49,6 +54,11 @@ class LayoutNode(SlicerBaseNode):
                 '3D Only':          slicer.vtkMRMLLayoutNode.SlicerLayoutOneUp3DView,
             }
         return cls._LAYOUT_MAP
+
+    def __init__(self):
+        SlicerBaseNode.__init__(self)
+        # Volume rendering display nodes this node created for its 3D input.
+        self._created_vr = []
 
     def execute(self, inputs):
         # Store inputs so route_to_viewer can use them even if called later
@@ -81,13 +91,31 @@ class LayoutNode(SlicerBaseNode):
 
         slicer.util.resetSliceViews()
 
-        # Volume rendering for 3D view
+        # Volume rendering for 3D view: only this node's is shown.
         render_vol = self._cache.get('_render')
+        shown = None
         if render_vol is not None:
             vr_logic = slicer.modules.volumerendering.logic()
-            vr_logic.SetDefaultVolumeRenderingProperties(render_vol)
-            dn = vr_logic.GetFirstVolumeRenderingDisplayNode(render_vol)
-            if dn is None:
-                dn = vr_logic.CreateDefaultVolumeRenderingDisplayNode(render_vol)
-                render_vol.AddAndObserveDisplayNodeID(dn.GetID())
-            dn.SetVisibility(True)
+            shown = vr_logic.GetFirstVolumeRenderingDisplayNode(render_vol)
+            if shown is None:
+                shown = vr_logic.CreateDefaultVolumeRenderingNodes(render_vol)
+                _mark_ephemeral(shown)
+                self._created_vr.append(shown)
+        for dn in slicer.util.getNodesByClass(
+                'vtkMRMLVolumeRenderingDisplayNode'):
+            dn.SetVisibility(shown is not None
+                             and dn.GetID() == shown.GetID())
+
+    def release_outputs(self):
+        for dn in self._created_vr:
+            try:
+                if slicer.mrmlScene.GetNodeByID(dn.GetID()) is None:
+                    continue
+                extras = [dn.GetVolumePropertyNode(), dn.GetMarkupsROINode()]
+            except Exception:
+                continue
+            _remove_mrml_node(dn)
+            for extra in extras:
+                _remove_mrml_node(extra)
+        self._created_vr = []
+        SlicerBaseNode.release_outputs(self)
