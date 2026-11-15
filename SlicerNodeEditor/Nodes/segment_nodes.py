@@ -2,7 +2,7 @@
 
 import slicer
 from .base_node import (SlicerBaseNode, LinkedModuleNode,
-                         VOLUME, SEGMENTATION, _mark_ephemeral)
+                         VOLUME, SEGMENTATION, _mark_ephemeral, _debug)
 
 
 class SegmentationNode(SlicerBaseNode):
@@ -49,31 +49,24 @@ class SegmentationNode(SlicerBaseNode):
             seg.GetSegmentation().AddEmptySegment('Segment_1')
 
         if method in ('Threshold', 'Otsu'):
-            # Use Segment Editor's threshold effect programmatically
-            seg_editor_node = slicer.mrmlScene.AddNewNodeByClass(
-                'vtkMRMLSegmentEditorNode')
-            seg_editor_node.SetName('__NodeEditorTemp__')
-
-            seg_widget = slicer.qMRMLSegmentEditorWidget()
-            seg_widget.setMRMLScene(slicer.mrmlScene)
-            seg_widget.setMRMLSegmentEditorNode(seg_editor_node)
-            seg_widget.setSegmentationNode(seg)
-            seg_widget.setSourceVolumeNode(volume_node)
-
-            if method == 'Threshold':
-                seg_widget.setActiveEffectByName('Threshold')
-                effect = seg_widget.activeEffect()
-                effect.setParameter('MinimumThreshold', str(lower))
-                effect.setParameter('MaximumThreshold', str(upper))
-                effect.self().onApply()
-            elif method == 'Otsu':
-                seg_widget.setActiveEffectByName('Threshold')
-                effect = seg_widget.activeEffect()
-                effect.self().onAutoThreshold(
-                    'OTSU', 'SET_LOWER_MAX')
-                effect.self().onApply()
-
-            slicer.mrmlScene.RemoveNode(seg_editor_node)
+            # Write the mask straight into the segment. Driving a Segment
+            # Editor widget for this leaves its threshold effect observing
+            # the slice views after the widget is dropped.
+            seg.SetReferenceImageGeometryParameterFromVolumeNode(volume_node)
+            voxels = slicer.util.arrayFromVolume(volume_node)
+            if method == 'Otsu':
+                import SimpleITK as sitk
+                import sitkUtils
+                otsu = sitk.OtsuThresholdImageFilter()
+                otsu.Execute(sitkUtils.PullVolumeFromSlicer(volume_node))
+                # Same convention as the Segment Editor's automatic
+                # threshold: from the Otsu value up to the maximum.
+                mask = voxels >= otsu.GetThreshold()
+            else:
+                mask = (voxels >= lower) & (voxels <= upper)
+            segment_id = seg.GetSegmentation().GetNthSegmentID(0)
+            slicer.util.updateSegmentBinaryLabelmapFromArray(
+                mask.astype('uint8'), seg, segment_id, volume_node)
 
         return {'seg_out': seg}
 
@@ -129,6 +122,23 @@ class SegmentEditorNode(LinkedModuleNode):
         'volume_in': ('setSourceVolumeNode', 'setMasterVolumeNode'),
         'seg_in':    ('setSegmentationNode',),
     }
+
+    def configure_module_widget(self, module_widget, node_item):
+        """Point the Segment Editor at this node's segmentation and
+        volume. The module is scripted: the editor widget that has the
+        setters hangs off the module widget's Python object."""
+        try:
+            editor = module_widget.self().editor
+        except Exception as exc:
+            _debug(f"{self.NODE_NAME}: no editor widget: {exc}")
+            return
+        seg = self._cache.get('seg_out') or self._resolve_input(
+            node_item, 'seg_in')
+        vol = self._resolve_input(node_item, 'volume_in')
+        if seg is not None:
+            editor.setSegmentationNode(seg)
+        if vol is not None:
+            editor.setSourceVolumeNode(vol)
 
     def execute(self, inputs):
         # If no segmentation is fed in, create a fresh one bound to the

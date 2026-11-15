@@ -13,6 +13,11 @@ class CropVolumeNode(LinkedModuleNode):
     pressing 1 (or Execute) runs the crop and outputs the cropped volume.
     Double-click opens the Crop Volume module so the user can adjust the
     ROI / parameters directly.
+
+    The ROI is fitted to the input once, when it is created. After that
+    it belongs to the user: dragging it in the views re-runs the crop,
+    and its center and size are kept in the node's properties
+    ('roi_center', 'roi_size') so they are saved with the graph.
     """
 
     NODE_NAME     = "Crop Volume"
@@ -50,9 +55,26 @@ class CropVolumeNode(LinkedModuleNode):
             roi = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsROINode')
             roi.SetName(vol.GetName() + '_roi')
             _mark_ephemeral(roi)
+            param.SetROINodeID(roi.GetID())
+            center = self.get_property('roi_center')
+            size = self.get_property('roi_size')
+            if center and size:
+                # A saved graph (or an undo) carries the ROI the user set.
+                roi.SetCenter(*center)
+                roi.SetSize(*size)
+            else:
+                cv_logic.SnapROIToVoxelGrid(param)
+                cv_logic.FitROIToInputVolume(param)
+        else:
+            center = self.get_property('roi_center')
+            size = self.get_property('roi_size')
+            if (center and size
+                    and (list(roi.GetCenter()) != list(center)
+                         or list(roi.GetSize()) != list(size))):
+                # Properties changed under us (undo, redo): follow them.
+                roi.SetCenter(*center)
+                roi.SetSize(*size)
         param.SetROINodeID(roi.GetID())
-        cv_logic.SnapROIToVoxelGrid(param)
-        cv_logic.FitROIToInputVolume(param)
 
         # Reuse the cropped-volume node WE own. (_cache may carry an
         # upstream ref left by passthrough; that is not safe to write
@@ -75,7 +97,17 @@ class CropVolumeNode(LinkedModuleNode):
         # Stash the helpers so subsequent runs reuse them
         self._cache['_param_node'] = param
         self._cache['_roi_node']   = roi
+        self._store_roi(roi)
+        self._watch_setting_node('roi', roi)
         return {'volume_out': out}
+
+    def _store_roi(self, roi):
+        self._props['roi_center'] = [float(v) for v in roi.GetCenter()]
+        self._props['roi_size']   = [float(v) for v in roi.GetSize()]
+
+    def _on_setting_changed(self, key, mrml_node):
+        if key == 'roi':
+            self._store_roi(mrml_node)
 
     def release_outputs(self):
         for key in ('_param_node', '_roi_node'):

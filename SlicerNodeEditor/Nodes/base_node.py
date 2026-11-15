@@ -373,6 +373,12 @@ class SlicerBaseNode:
         # dirty propagation.
         self._dirty_pending = False
 
+        # MRML nodes this node uses as hand-adjustable settings (a crop
+        # ROI). Keyed by a name; value is [mrml_node, tags, stamp].
+        # See _watch_setting_node.
+        self._setting_observers = {}
+        self._setting_pending = False
+
     # ------------------------------------------------------------------
     # Property access
     # ------------------------------------------------------------------
@@ -510,6 +516,7 @@ class SlicerBaseNode:
         (display nodes, parameter nodes, loaded sample sets) extend this.
         """
         self._clear_input_observers()
+        self._clear_setting_observers()
         for mrml_node in list(self._owned_outputs.values()):
             _remove_mrml_node(mrml_node)
         self._owned_outputs.clear()
@@ -649,6 +656,99 @@ class SlicerBaseNode:
         self._input_observers.clear()
         self._input_stamps.clear()
 
+    # ------------------------------------------------------------------
+    # Setting nodes: MRML nodes the user adjusts by hand in the views
+    # ------------------------------------------------------------------
+
+    def _watch_setting_node(self, key, mrml_node):
+        """
+        Treat `mrml_node` (an ROI, a markup) as one of this node's
+        settings: when the user changes it in the views, this node and
+        everything downstream is marked dirty and the viewed slot re-runs,
+        the same as after a change in the properties panel.
+
+        Call at the end of execute(), which also records the node's
+        current state as the one the outputs were computed from.
+        """
+        current = self._setting_observers.get(key)
+        if current is not None and current[0] is mrml_node:
+            current[2] = _content_stamp(mrml_node)
+            return
+        if current is not None:
+            for tag in current[1]:
+                try:
+                    current[0].RemoveObserver(tag)
+                except Exception:
+                    pass
+        tags = []
+        try:
+            for event in _input_events(mrml_node):
+                tags.append(mrml_node.AddObserver(
+                    event, lambda caller, event, k=key:
+                        self._on_setting_modified(k)))
+        except Exception as exc:
+            _debug(f"{self.NODE_NAME}: could not observe setting "
+                   f"'{key}': {exc}")
+        self._setting_observers[key] = [mrml_node, tags,
+                                        _content_stamp(mrml_node)]
+
+    def _clear_setting_observers(self):
+        for mrml_node, tags, _stamp in list(self._setting_observers.values()):
+            for tag in tags:
+                try:
+                    mrml_node.RemoveObserver(tag)
+                except Exception:
+                    pass
+        self._setting_observers.clear()
+
+    def _setting_changed(self):
+        for mrml_node, _tags, stamp in list(self._setting_observers.values()):
+            try:
+                if _content_stamp(mrml_node) != stamp:
+                    return True
+            except Exception:
+                return True
+        return False
+
+    def _on_setting_changed(self, key, mrml_node):
+        """Hook: a watched setting node changed. Subclasses copy its
+        state into their properties so it is saved with the graph."""
+        pass
+
+    def _on_setting_modified(self, key):
+        if self._self_modified or self._setting_pending:
+            return
+        if not self._setting_changed():
+            return
+        self._setting_pending = True
+
+        def _fire():
+            self._setting_pending = False
+            if not self._setting_changed():
+                return
+            entry = self._setting_observers.get(key)
+            if entry is not None:
+                try:
+                    self._on_setting_changed(key, entry[0])
+                except Exception as exc:
+                    _debug(f"{self.NODE_NAME}: setting hook failed: {exc}")
+            self.mark_dirty()
+            node_item = getattr(self, '_executing_node_item', None)
+            try:
+                scene = node_item.scene() if node_item is not None else None
+                if scene is not None and hasattr(scene, 'mark_dirty_from'):
+                    scene.mark_dirty_from(node_item)
+                    scene.notify_property_changed(node_item)
+                    scene.notify_mutation()
+            except Exception:
+                pass
+
+        try:
+            import qt
+            qt.QTimer.singleShot(150, _fire)
+        except Exception:
+            _fire()
+
     def _input_content_changed(self, port_name=None):
         """True if an observed input's data differs from what this node
         last bound to. With a port name, checks that input only."""
@@ -764,6 +864,10 @@ class LinkedModuleNode(SlicerBaseNode):
             if value is None:
                 continue
             setters = (setter_spec,) if isinstance(setter_spec, str) else tuple(setter_spec)
+            # Every Slicer module widget implements setEditedNode: it
+            # selects the given node in the module. Module-specific
+            # setters are tried first, this one last.
+            setters = setters + ('setEditedNode',)
             pushed = False
             for setter_name in setters:
                 if hasattr(module_widget, setter_name):

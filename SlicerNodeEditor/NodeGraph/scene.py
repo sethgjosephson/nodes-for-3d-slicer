@@ -845,6 +845,11 @@ class NodeEditorScene(QGraphicsScene):
                     node.release_outputs()
                 except Exception:
                     import traceback; traceback.print_exc()
+        # Reconnecting the edges marked every connected node dirty. Put
+        # the kept nodes back to the state they were in.
+        for uid, ni in kept.items():
+            ni.node_data.is_dirty = old[uid][1]
+            ni.update()
         # A kept node whose settings or input connections changed must
         # run again, and so must everything downstream of it.
         for uid, ni in kept.items():
