@@ -138,7 +138,7 @@ class SearchPopup(QWidget):
             hdr.setFont(f)
             self._list.addItem(hdr)
 
-            for cls in sorted(cats[cat], key=lambda c: c.NODE_NAME):
+            for cls in sorted(cats[cat], key=lambda c: c.NODE_NAME.lower()):
                 item = QListWidgetItem(f"    {cls.NODE_NAME}")
                 self._list.addItem(item)
                 self._row_to_cls[self._list.count - 1] = cls
@@ -172,7 +172,7 @@ class SearchPopup(QWidget):
                 tier = 2
             else:
                 tier = 3
-            return (tier, cls.NODE_NAME)
+            return (tier, name)
 
         for cls in sorted(matches, key=rank):
             item = QListWidgetItem(cls.NODE_NAME)
