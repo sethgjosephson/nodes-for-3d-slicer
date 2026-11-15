@@ -54,6 +54,8 @@ check(r.shape == f.shape, f"registered volume is on the fixed grid ({r.shape})")
 c_after = float(np.corrcoef(f.ravel(), r.ravel())[0, 1])
 print(f"  correlation with fixed after registration: {c_after:.3f}")
 check(c_after > 0.5, "registered volume correlates with the fixed volume")
+check(g.out(moving, 'volume_out').GetParentTransformNode() is None,
+      "the moving volume was left where it was")
 out = g.out(apply, 'volume_out')
 check(out is not None and out.GetParentTransformNode() is None,
       "hardened output has no parent transform")

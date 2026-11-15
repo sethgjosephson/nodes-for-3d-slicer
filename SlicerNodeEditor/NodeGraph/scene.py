@@ -237,6 +237,10 @@ class NodeEditorScene(QGraphicsScene):
             return None
         if source_port.node_item is target_port.node_item:
             return None
+        if not (source_port.data_type == target_port.data_type
+                or source_port.data_type == 'any'
+                or target_port.data_type == 'any'):
+            return None
         # Remove existing edge into target (input ports are 1:1)
         existing = self.get_incoming_edge(target_port)
         if existing:

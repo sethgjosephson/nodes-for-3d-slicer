@@ -97,8 +97,8 @@ class G:
         if name not in item.node_data._props:
             raise KeyError(f"{item.node_data.NODE_NAME} has no property "
                            f"'{name}'")
-        item.node_data.set_property(name, value)
-        self.scene.mark_dirty_from(item)
+        # The same call the properties panel makes.
+        item.set_property(name, value)
 
     def connect(self, src, src_port, dst, dst_port):
         out_port = src.get_port(src_port, is_input=False)

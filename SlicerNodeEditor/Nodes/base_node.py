@@ -810,6 +810,9 @@ class SlicerBaseNode:
                 scene = node_item.scene() if node_item is not None else None
                 if scene is not None and hasattr(scene, 'mark_dirty_from'):
                     scene.mark_dirty_from(node_item)
+                    # Same as a property change: if the viewed chain can
+                    # re-run by itself, it does.
+                    scene.notify_property_changed(node_item)
                 elif node_item is not None:
                     node_item.update()
             except Exception:

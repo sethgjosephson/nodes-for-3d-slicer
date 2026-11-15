@@ -309,8 +309,16 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 hl.addWidget(w)
                 browse = qt.QPushButton("…")
                 browse.setMaximumWidth(28)
-                def _browse(line_edit=w):
-                    path = qt.QFileDialog.getOpenFileName(None, "Select file")
+                # A path the node writes to needs a save dialog, which
+                # accepts a file that does not exist yet.
+                saving = 'output' in prop['label'].lower()
+                def _browse(line_edit=w, saving=saving):
+                    if saving:
+                        path = qt.QFileDialog.getSaveFileName(
+                            None, "Save as")
+                    else:
+                        path = qt.QFileDialog.getOpenFileName(
+                            None, "Select file")
                     if path:
                         line_edit.setText(path)
                 browse.connect('clicked()', _browse)

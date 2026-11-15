@@ -477,7 +477,7 @@ class NodeEditorCanvas(QGraphicsView):
         if not self._can_auto_run(target):
             return  # expensive ancestor in the chain; wait for manual press-1
         try:
-            self._router.activate(slot)
+            self._router.refresh(slot)
         except Exception:
             import traceback; traceback.print_exc()
 

@@ -2,7 +2,7 @@
 
 import slicer
 from .base_node import (SlicerBaseNode, LinkedModuleNode, VOLUME, TRANSFORM,
-                         _mark_ephemeral)
+                         _mark_ephemeral, _debug)
 
 
 class RegistrationNode(SlicerBaseNode):
@@ -84,6 +84,12 @@ class RegistrationNode(SlicerBaseNode):
         # are empty / stale until the CLI finishes; downstream observers
         # added by Phase B.1 will see their ModifiedEvent and mark
         # downstream nodes dirty automatically when the data arrives.
+        # Slicer places the moving volume under the output transform when
+        # BRAINSFit finishes. That volume belongs to an upstream node and
+        # may feed other branches, so remember where it was and put it
+        # back on completion (see _restore_moving_volume).
+        self._moving_before = (moving, moving.GetTransformNodeID())
+
         self._async_pending = True
         cli_node = slicer.cli.run(
             slicer.modules.brainsfit, None, params,
@@ -122,6 +128,7 @@ class RegistrationNode(SlicerBaseNode):
         if status not in terminal:
             return  # still running
         self._async_cli_node = None
+        self._restore_moving_volume()
 
         if status == cli_node.Completed:
             self._notify_async_complete(True)
@@ -146,6 +153,27 @@ class RegistrationNode(SlicerBaseNode):
                 "Check the Error Log for details.")
         except Exception:
             pass
+
+    def _restore_moving_volume(self):
+        """Undo Slicer's re-parenting of the moving volume under the
+        output transform. The transform is this node's output; applying it
+        is the job of an Apply Transform node downstream."""
+        moving, parent_id = getattr(self, '_moving_before', (None, None))
+        self._moving_before = (None, None)
+        xfm = self._owned_outputs.get('transform_out')
+        if moving is None or xfm is None:
+            return
+        try:
+            if (slicer.mrmlScene.GetNodeByID(moving.GetID()) is not None
+                    and moving.GetTransformNodeID() == xfm.GetID()):
+                was = self._self_modified
+                self._self_modified = True
+                try:
+                    moving.SetAndObserveTransformNodeID(parent_id)
+                finally:
+                    self._self_modified = was
+        except Exception as exc:
+            _debug(f"Registration: could not restore the moving volume: {exc}")
 
     def release_outputs(self):
         cli = getattr(self, '_async_cli_node', None)

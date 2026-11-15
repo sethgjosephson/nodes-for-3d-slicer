@@ -49,6 +49,42 @@ class ViewerSlotManager:
         if node_item is not None:
             self._display(node_item)
 
+    def refresh(self, slot: int):
+        """
+        Re-run the node in this slot after a change upstream, without
+        touching the views unless what the node shows is a different
+        MRML node than before. Outputs are reused across runs, so the
+        views follow the new data by themselves; routing again would
+        reset the user's zoom, pan and layout on every edit.
+        """
+        self._active = slot
+        node_item = self._slots.get(slot)
+        if node_item is None:
+            return
+        nd = node_item.node_data
+        if self._executor is None:
+            return
+        before = self._shown_ids(nd)
+        try:
+            self._executor.execute_up_to(node_item)
+        except Exception as exc:
+            import slicer, traceback
+            traceback.print_exc()
+            slicer.util.errorDisplay(f"Execution failed: {exc}")
+            return
+        if self._shown_ids(nd) != before:
+            self._display(node_item)
+
+    @staticmethod
+    def _shown_ids(node_data):
+        ids = {}
+        for key, value in node_data._cache.items():
+            try:
+                ids[key] = value.GetID() if value is not None else None
+            except Exception:
+                ids[key] = None
+        return ids
+
     def get_slot_node(self, slot: int):
         return self._slots.get(slot)
 

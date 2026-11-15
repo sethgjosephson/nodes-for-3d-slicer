@@ -65,18 +65,29 @@ check(not g.dirty(), f"a rename does not mark anything dirty ({g.dirty()})")
 arr = slicer.util.arrayFromVolume(smooth_vol)
 arr[:] = 0
 slicer.util.arrayFromVolumeModified(smooth_vol)
-wait(400)
-check(g.dirty() == ['Threshold'],
-      f"editing the voxels marks only the downstream node ({g.dirty()})")
-g.select(g.by_name('Threshold'))
-g.press('1')
+wait(1500)
+check(not g.dirty(), f"the viewed chain re-ran by itself ({g.dirty()})")
 out = array(g.out(g.by_name('Threshold'), 'volume_out'))
 check(int((out != 0).sum()) == 0, "threshold re-ran on the edited voxels")
+check(array(smooth_vol).max() == 0,
+      "the edited volume was not recomputed over the edit")
+
+section("an edit upstream of a node that is not being viewed")
+g.select(g.by_name('Sample Data'))
+g.press('1')
+arr = slicer.util.arrayFromVolume(smooth_vol)
+arr[:] = 5
+slicer.util.arrayFromVolumeModified(smooth_vol)
+wait(1500)
+check(g.dirty() == ['Threshold'],
+      f"only the downstream node is dirty, and it waits ({g.dirty()})")
+g.select(g.by_name('Threshold'))
+g.press('1')
 
 section("moving a volume under a transform")
 xfm = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
 smooth_vol.SetAndObserveTransformNodeID(xfm.GetID())
-wait(400)
+wait(150)
 check(g.dirty() == ['Threshold'],
       f"a new parent transform marks the downstream node ({g.dirty()})")
 smooth_vol.SetAndObserveTransformNodeID(None)

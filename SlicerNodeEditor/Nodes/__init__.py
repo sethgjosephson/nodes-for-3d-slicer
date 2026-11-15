@@ -1,9 +1,13 @@
-from .io_nodes       import (LoadVolumeNode, SaveVolumeNode, SampleDataNode,
+from .io_nodes       import (LoadVolumeNode, SaveVolumeNode, SaveDataNode,
+                              SampleDataNode, NewMarkupNode,
                               VolumesNode, MarkupsNode)
 from .filter_nodes   import ThresholdNode, GaussianSmoothNode, MedianFilterNode
 from .simple_filter_node import SimpleFilterNode
 from .segment_nodes  import (SegmentationNode, SegmentEditorNode,
                               SegmentationsNode)
+from .segment_ops_nodes import (SegmentFilterNode, SurfaceModelNode,
+                                 SegmentStatisticsNode, MaskVolumeNode,
+                                 LabelMapToSegmentationNode)
 from .register_nodes import RegistrationNode, ApplyTransformNode, TransformsNode
 from .viz_nodes      import VolumeRenderingNode, ModelsNode
 from .layout_node    import LayoutNode
@@ -15,6 +19,8 @@ ALL_NODE_CLASSES = [
     SampleDataNode,
     LoadVolumeNode,
     SaveVolumeNode,
+    SaveDataNode,
+    NewMarkupNode,
     VolumesNode,
     MarkupsNode,
     # Filters / processing
@@ -27,6 +33,12 @@ ALL_NODE_CLASSES = [
     SegmentationNode,
     SegmentEditorNode,
     SegmentationsNode,
+    SegmentFilterNode,
+    MaskVolumeNode,
+    LabelMapToSegmentationNode,
+    SurfaceModelNode,
+    # Measurement
+    SegmentStatisticsNode,
     # Registration / transforms
     RegistrationNode,
     ApplyTransformNode,

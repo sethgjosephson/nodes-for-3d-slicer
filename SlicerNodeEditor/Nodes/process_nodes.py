@@ -1,7 +1,7 @@
 """Volume processing nodes that wrap existing Slicer modules."""
 
 import slicer
-from .base_node import LinkedModuleNode, VOLUME, _mark_ephemeral
+from .base_node import LinkedModuleNode, VOLUME, MARKUP, _mark_ephemeral
 
 
 class CropVolumeNode(LinkedModuleNode):
@@ -24,7 +24,8 @@ class CropVolumeNode(LinkedModuleNode):
     CATEGORY      = "Filters"
     LINKED_MODULE = "CropVolume"
 
-    INPUT_PORTS   = [("volume_in",  "Volume", VOLUME)]
+    INPUT_PORTS   = [("volume_in",  "Volume", VOLUME),
+                     ("roi_in",     "ROI",    MARKUP)]
     OUTPUT_PORTS  = [("volume_out", "Volume", VOLUME)]
 
     PROPERTIES = [
@@ -48,6 +49,19 @@ class CropVolumeNode(LinkedModuleNode):
             param.SetName(vol.GetName() + '_cropParam')
             _mark_ephemeral(param)
         param.SetInputVolumeNodeID(vol.GetID())
+
+        # An ROI connected to the input port is used as it is. It belongs
+        # to the upstream node, which keeps and saves its placement.
+        external_roi = inputs.get('roi_in')
+        if external_roi is not None:
+            if not external_roi.IsA('vtkMRMLMarkupsROINode'):
+                raise ValueError(
+                    "Crop Volume: the ROI input must be an ROI markup.")
+            if external_roi.GetNumberOfControlPoints() == 0:
+                raise ValueError(
+                    "Crop Volume: the connected ROI has not been placed.")
+            param.SetROINodeID(external_roi.GetID())
+            return self._apply_crop(cv_logic, param, vol)
 
         # Reuse or create the ROI markup
         roi = self._cache.get('_roi_node')
@@ -75,7 +89,14 @@ class CropVolumeNode(LinkedModuleNode):
                 roi.SetCenter(*center)
                 roi.SetSize(*size)
         param.SetROINodeID(roi.GetID())
+        result = self._apply_crop(cv_logic, param, vol)
+        self._cache['_roi_node'] = roi
+        self._store_roi(roi)
+        self._watch_setting_node('roi', roi)
+        return result
 
+    def _apply_crop(self, cv_logic, param, vol):
+        """Run the crop with the ROI already set on `param`."""
         # Reuse the cropped-volume node WE own. (_cache may carry an
         # upstream ref left by passthrough; that is not safe to write
         # CropVolume output into.)
@@ -94,11 +115,8 @@ class CropVolumeNode(LinkedModuleNode):
 
         cv_logic.Apply(param)
 
-        # Stash the helpers so subsequent runs reuse them
+        # Stash the helper so subsequent runs reuse it
         self._cache['_param_node'] = param
-        self._cache['_roi_node']   = roi
-        self._store_roi(roi)
-        self._watch_setting_node('roi', roi)
         return {'volume_out': out}
 
     def _store_roi(self, roi):

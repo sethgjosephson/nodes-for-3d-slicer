@@ -43,6 +43,7 @@ CAT_COLOR = {
     "Filters":       (48,  98,  48),
     "Segmentation":  (98,  48,  98),
     "Registration":  (115, 85,  28),
+    "Measure":       (120, 62,  52),
     "Visualization": (28,  98, 108),
     "Layout":        (72,  72,  72),
     "Utilities":     (68,  68,  68),

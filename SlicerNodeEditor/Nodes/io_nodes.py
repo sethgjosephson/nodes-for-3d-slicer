@@ -2,7 +2,7 @@
 
 import slicer
 from .base_node import (SlicerBaseNode, LinkedModuleNode,
-                         VOLUME, MARKUP, _mark_ephemeral)
+                         VOLUME, MARKUP, ANY, _mark_ephemeral)
 
 
 def _snapshot_scene_node_ids():
@@ -171,6 +171,146 @@ class SaveVolumeNode(SlicerBaseNode):
             raise ValueError("Save Volume: no output path specified.")
         slicer.util.saveNode(node, path)
         return {}
+
+
+class SaveDataNode(SlicerBaseNode):
+    """Writes any input (segmentation, model, table, transform, markup,
+    volume) to a file. The file extension picks the format."""
+
+    NODE_NAME    = "Save Data"
+    CATEGORY     = "I/O"
+    # A half-typed path must not write files.
+    AUTO_EXECUTE = False
+
+    INPUT_PORTS  = [("data_in", "Data", ANY)]
+    OUTPUT_PORTS = []
+
+    PROPERTIES = [
+        {'name': 'file_path', 'label': 'Output Path', 'type': 'str', 'default': ''},
+    ]
+
+    def execute(self, inputs):
+        node = inputs.get('data_in')
+        path = self.get_property('file_path')
+        if node is None:
+            raise ValueError("Save Data: nothing connected.")
+        if not path:
+            raise ValueError("Save Data: no output path specified.")
+        if not slicer.util.saveNode(node, path):
+            raise RuntimeError(f"Save Data: could not write '{path}'.")
+        return {}
+
+
+# ---------------------------------------------------------------------------
+# New Markup: a markup the user places in the views
+# ---------------------------------------------------------------------------
+
+MARKUP_KINDS = {
+    'Point List': 'vtkMRMLMarkupsFiducialNode',
+    'Line':       'vtkMRMLMarkupsLineNode',
+    'Curve':      'vtkMRMLMarkupsCurveNode',
+    'Plane':      'vtkMRMLMarkupsPlaneNode',
+    'ROI':        'vtkMRMLMarkupsROINode',
+}
+
+
+class NewMarkupNode(SlicerBaseNode):
+    """
+    Creates a markup for the user to place in the views.
+
+    The placement is hand-made state, so it is kept in the node's
+    properties ('points', and 'roi_size' for an ROI) and saved with the
+    graph. Moving a point re-runs whatever is being viewed downstream.
+    """
+
+    NODE_NAME    = "New Markup"
+    CATEGORY     = "I/O"
+
+    INPUT_PORTS  = []
+    OUTPUT_PORTS = [("markup_out", "Markup", MARKUP)]
+
+    PROPERTIES = [
+        {'name': 'kind', 'label': 'Kind', 'type': 'enum',
+         'default': 'Point List', 'items': list(MARKUP_KINDS)},
+        {'name': 'name', 'label': 'Name', 'type': 'str', 'default': 'Markup'},
+    ]
+
+    def execute(self, inputs):
+        kind = self.get_property('kind')
+        mrml_class = MARKUP_KINDS.get(kind)
+        if mrml_class is None:
+            raise ValueError(f"New Markup: unknown kind '{kind}'.")
+
+        markup = self._owned_outputs.get('markup_out')
+        if (markup is not None
+                and (not slicer.mrmlScene.GetNodeByID(markup.GetID())
+                     or markup.GetClassName() != mrml_class)):
+            # The kind changed: the old markup cannot become the new one.
+            if slicer.mrmlScene.GetNodeByID(markup.GetID()):
+                slicer.mrmlScene.RemoveNode(markup)
+            markup = None
+            self._props.pop('points', None)
+            self._props.pop('roi_size', None)
+        if markup is None:
+            markup = slicer.mrmlScene.AddNewNodeByClass(mrml_class)
+            markup.CreateDefaultDisplayNodes()
+            _mark_ephemeral(markup)
+            self._owned_outputs['markup_out'] = markup
+            self._apply_stored_placement(markup)
+        elif self._stored_placement(markup) != self._placement_props():
+            # Properties changed under us (undo, redo): follow them.
+            self._apply_stored_placement(markup)
+        markup.SetName(self.get_property('name') or kind)
+        self._watch_setting_node('markup', markup)
+        return {'markup_out': markup}
+
+    # -- placement <-> properties ---------------------------------------
+
+    def _placement_props(self):
+        return (self._props.get('points') or [], self._props.get('roi_size'))
+
+    @staticmethod
+    def _stored_placement(markup):
+        points = []
+        for i in range(markup.GetNumberOfControlPoints()):
+            p = [0.0, 0.0, 0.0]
+            markup.GetNthControlPointPosition(i, p)
+            points.append([float(v) for v in p])
+        size = None
+        if markup.IsA('vtkMRMLMarkupsROINode'):
+            size = [float(v) for v in markup.GetSize()]
+        return (points, size)
+
+    def _apply_stored_placement(self, markup):
+        points, size = self._placement_props()
+        markup.RemoveAllControlPoints()
+        for p in points:
+            markup.AddControlPoint(p[0], p[1], p[2])
+        if size and markup.IsA('vtkMRMLMarkupsROINode'):
+            markup.SetSize(*size)
+
+    def _on_setting_changed(self, key, mrml_node):
+        points, size = self._stored_placement(mrml_node)
+        self._props['points'] = points
+        if size is not None:
+            self._props['roi_size'] = size
+
+    # -- viewing ---------------------------------------------------------
+
+    def route_to_viewer(self):
+        """Show the markup. If it has no points yet, start placing."""
+        markup = self._cache.get('markup_out')
+        if markup is None:
+            return
+        dn = markup.GetDisplayNode()
+        if dn is not None:
+            dn.SetVisibility(True)
+        if markup.GetNumberOfControlPoints() == 0:
+            selection = slicer.app.applicationLogic().GetSelectionNode()
+            selection.SetReferenceActivePlaceNodeClassName(markup.GetClassName())
+            selection.SetActivePlaceNodeID(markup.GetID())
+            interaction = slicer.app.applicationLogic().GetInteractionNode()
+            interaction.SetCurrentInteractionMode(interaction.Place)
 
 
 # ---------------------------------------------------------------------------
