@@ -86,6 +86,7 @@ class VolumeRenderingNode(LinkedModuleNode):
                 # The display node belongs to the graph, not the saved scene.
                 _mark_ephemeral(dn)
             self._vr_display_node = dn
+            self._vr_display_created = created
             return dn
 
         # Same volume still flowing in: nothing to do.
@@ -191,6 +192,32 @@ class VolumeRenderingNode(LinkedModuleNode):
             return max_opacity < 0.01
         except Exception:
             return False
+
+    def release_outputs(self):
+        """Remove the display node this graph node created, with its
+        volume property and ROI. A display node that was already on the
+        volume and only adopted here is hidden and left in place."""
+        dn = self._owned_display_node()
+        if dn is not None:
+            if getattr(self, '_vr_display_created', False):
+                extras = []
+                for getter in ('GetVolumePropertyNode', 'GetMarkupsROINode'):
+                    try:
+                        extras.append(getattr(dn, getter)())
+                    except Exception:
+                        pass
+                slicer.mrmlScene.RemoveNode(dn)
+                for extra in extras:
+                    try:
+                        if (extra is not None and slicer.mrmlScene.GetNodeByID(
+                                extra.GetID()) is not None):
+                            slicer.mrmlScene.RemoveNode(extra)
+                    except Exception:
+                        pass
+            else:
+                dn.SetVisibility(False)
+        self._vr_display_node = None
+        LinkedModuleNode.release_outputs(self)
 
     def _owned_display_node(self):
         """The display node this graph node owns, or None if it (or the

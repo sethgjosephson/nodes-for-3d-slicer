@@ -158,6 +158,105 @@ def _mark_ephemeral(mrml_node):
     _adopt_into_graph_folder(mrml_node)
 
 
+# ---------------------------------------------------------------------------
+# Content stamps: tell a change of an MRML node's data apart from a change
+# of its metadata.
+# ---------------------------------------------------------------------------
+
+def _content_stamp(mrml_node):
+    """
+    Return a comparable value that changes when the data carried by
+    `mrml_node` changes, and stays the same when only its metadata does.
+
+    Slicer fires ModifiedEvent on a node for many reasons that leave the
+    data alone: a rename, a new display node, a Subject Hierarchy move,
+    work Slicer defers to the event loop after a node is created.
+    Treating each of those as an input change marks freshly run nodes
+    dirty again, so input observers compare stamps instead.
+    """
+    if mrml_node is None:
+        return None
+    stamp = [mrml_node.GetID()]
+    try:
+        if mrml_node.IsA('vtkMRMLVolumeNode'):
+            image = mrml_node.GetImageData()
+            stamp.append(image.GetMTime() if image is not None else 0)
+            import vtk
+            m = vtk.vtkMatrix4x4()
+            mrml_node.GetIJKToRASMatrix(m)
+            stamp.append(tuple(m.GetElement(r, c)
+                               for r in range(3) for c in range(4)))
+        elif mrml_node.IsA('vtkMRMLSegmentationNode'):
+            seg = mrml_node.GetSegmentation()
+            if seg is not None:
+                rep_name = seg.GetSourceRepresentationName()
+                for i in range(seg.GetNumberOfSegments()):
+                    segment = seg.GetNthSegment(i)
+                    rep = segment.GetRepresentation(rep_name)
+                    stamp.append((seg.GetNthSegmentID(i), segment.GetName(),
+                                  rep.GetMTime() if rep is not None else 0))
+        elif mrml_node.IsA('vtkMRMLTransformNode'):
+            stamp.append(mrml_node.GetTransformToWorldMTime())
+        elif mrml_node.IsA('vtkMRMLMarkupsNode'):
+            import vtk
+            pos = vtk.vtkVector3d()
+            for i in range(mrml_node.GetNumberOfControlPoints()):
+                mrml_node.GetNthControlPointPositionWorld(i, pos)
+                stamp.append((pos[0], pos[1], pos[2]))
+            if mrml_node.IsA('vtkMRMLMarkupsROINode'):
+                stamp.append(tuple(mrml_node.GetSize()))
+        elif mrml_node.IsA('vtkMRMLModelNode'):
+            mesh = mrml_node.GetMesh()
+            stamp.append(mesh.GetMTime() if mesh is not None else 0)
+        elif mrml_node.IsA('vtkMRMLTableNode'):
+            table = mrml_node.GetTable()
+            stamp.append(table.GetMTime() if table is not None else 0)
+        else:
+            stamp.append(mrml_node.GetMTime())
+        if mrml_node.IsA('vtkMRMLTransformableNode'):
+            parent = mrml_node.GetParentTransformNode()
+            if parent is not None:
+                stamp.append((parent.GetID(),
+                              parent.GetTransformToWorldMTime()))
+    except Exception as exc:
+        _debug(f"content stamp failed for {mrml_node.GetID()}: {exc}")
+        stamp.append(mrml_node.GetMTime())
+    return tuple(stamp)
+
+
+def _input_events(mrml_node):
+    """The events that can announce a data change on `mrml_node`."""
+    import vtk
+    import slicer
+    events = [vtk.vtkCommand.ModifiedEvent]
+    if mrml_node.IsA('vtkMRMLVolumeNode'):
+        events.append(slicer.vtkMRMLVolumeNode.ImageDataModifiedEvent)
+    if mrml_node.IsA('vtkMRMLTransformableNode'):
+        events.append(slicer.vtkMRMLTransformableNode.TransformModifiedEvent)
+    if mrml_node.IsA('vtkMRMLSegmentationNode'):
+        seg = slicer.vtkSegmentation
+        events += [seg.SourceRepresentationModified, seg.SegmentAdded,
+                   seg.SegmentRemoved, seg.SegmentModified,
+                   seg.RepresentationModified]
+    if mrml_node.IsA('vtkMRMLMarkupsNode'):
+        mk = slicer.vtkMRMLMarkupsNode
+        events += [mk.PointModifiedEvent, mk.PointAddedEvent,
+                   mk.PointRemovedEvent]
+    return events
+
+
+def _remove_mrml_node(mrml_node):
+    """Remove `mrml_node` from the scene if it is still there."""
+    if mrml_node is None:
+        return
+    import slicer
+    try:
+        if slicer.mrmlScene.GetNodeByID(mrml_node.GetID()) is not None:
+            slicer.mrmlScene.RemoveNode(mrml_node)
+    except Exception as exc:
+        _debug(f"could not remove MRML node: {exc}")
+
+
 class SlicerBaseNode:
     """
     Base for every node in the pipeline.
@@ -225,6 +324,11 @@ class SlicerBaseNode:
     # ------------------------------------------------------------------
 
     def __init__(self):
+        # Identity of this node within its graph, written into saved
+        # graphs. Undo and redo use it to match a restored node to the
+        # live one so its computed outputs are kept, not rebuilt.
+        import uuid
+        self.uid        = uuid.uuid4().hex
         self._props     = {p['name']: p['default'] for p in self.PROPERTIES}
         # _cache: what DOWNSTREAM sees on each port. Mirrors execute()'s
         # return AND gets overwritten by passthrough when this node is
@@ -252,8 +356,11 @@ class SlicerBaseNode:
         # MRML ModifiedEvent observers on the node's CURRENT input MRML
         # nodes.  Maintained by _refresh_input_observers() which the
         # executor calls right after resolving inputs.  Keyed by input
-        # port name; value is (mrml_node, observer_tag).
+        # port name; value is (mrml_node, [observer_tag, ...]).
         self._input_observers = {}
+        # Content stamp of each input as of the last time the inputs
+        # were bound, keyed by input port name. See _content_stamp.
+        self._input_stamps = {}
 
         # Reentrance flag: set True while our own execute() runs, so any
         # ModifiedEvent fired by our own activity (e.g. writing to an
@@ -395,6 +502,20 @@ class SlicerBaseNode:
     def mark_clean(self):
         self.is_dirty = False
 
+    def release_outputs(self):
+        """
+        Remove from the MRML scene every node this graph node created,
+        and forget all cached references. Called when the graph node is
+        deleted. Subclasses that create MRML nodes outside _owned_outputs
+        (display nodes, parameter nodes, loaded sample sets) extend this.
+        """
+        self._clear_input_observers()
+        for mrml_node in list(self._owned_outputs.values()):
+            _remove_mrml_node(mrml_node)
+        self._owned_outputs.clear()
+        self._cache.clear()
+        self.is_dirty = True
+
     # ------------------------------------------------------------------
     # Async completion (call from a CLI completion observer)
     # ------------------------------------------------------------------
@@ -491,7 +612,6 @@ class SlicerBaseNode:
         if scene is None or not hasattr(scene, 'get_incoming_edge'):
             return
 
-        import vtk
         for port_name, _label, _dtype in self.INPUT_PORTS:
             in_port = node_item.get_port(port_name, is_input=True)
             if in_port is None:
@@ -503,27 +623,47 @@ class SlicerBaseNode:
             mrml_node = up_node_data._cache.get(edge.source_port.port_name)
             if mrml_node is None:
                 continue
+            self._input_stamps[port_name] = _content_stamp(mrml_node)
+            tags = []
             try:
-                tag = mrml_node.AddObserver(
-                    vtk.vtkCommand.ModifiedEvent,
-                    lambda caller, event, ni=node_item, up=up_node_data:
-                        self._on_input_modified(ni, up))
-                self._input_observers[port_name] = (mrml_node, tag)
+                for event in _input_events(mrml_node):
+                    tags.append(mrml_node.AddObserver(
+                        event,
+                        lambda caller, event, ni=node_item, up=up_node_data,
+                               port=port_name:
+                            self._on_input_modified(ni, up, port)))
             except Exception as exc:
                 _debug(f"{self.NODE_NAME}: could not observe input "
                        f"'{port_name}': {exc}")
-                continue
+            if tags:
+                self._input_observers[port_name] = (mrml_node, tags)
 
     def _clear_input_observers(self):
         """Remove every input observer we currently hold."""
-        for port_name, (mrml_node, tag) in list(self._input_observers.items()):
-            try:
-                mrml_node.RemoveObserver(tag)
-            except Exception:
-                pass
+        for port_name, (mrml_node, tags) in list(self._input_observers.items()):
+            for tag in tags:
+                try:
+                    mrml_node.RemoveObserver(tag)
+                except Exception:
+                    pass
         self._input_observers.clear()
+        self._input_stamps.clear()
 
-    def _on_input_modified(self, node_item, up_node_data=None):
+    def _input_content_changed(self, port_name=None):
+        """True if an observed input's data differs from what this node
+        last bound to. With a port name, checks that input only."""
+        for name, (mrml_node, _tags) in list(self._input_observers.items()):
+            if port_name is not None and name != port_name:
+                continue
+            try:
+                if _content_stamp(mrml_node) != self._input_stamps.get(name):
+                    return True
+            except Exception:
+                return True
+        return False
+
+    def _on_input_modified(self, node_item, up_node_data=None,
+                           port_name=None):
         """
         Observer callback (debounced).  An upstream MRML node fired a
         ModifiedEvent.  Mark this graph node and everything downstream
@@ -545,10 +685,18 @@ class SlicerBaseNode:
             return
         if self._dirty_pending:
             return
+        # Metadata-only events (rename, display node, Subject Hierarchy)
+        # leave the data as this node last saw it: not an input change.
+        if not self._input_content_changed(port_name):
+            return
         self._dirty_pending = True
 
         def _fire():
             self._dirty_pending = False
+            # The graph may have re-run this node between the event and
+            # now, binding it to the new data. Then there is nothing to do.
+            if not self._input_content_changed():
+                return
             self.mark_dirty()
             # Hand-edited content cannot be re-cooked from upstream; flag
             # that it may now be misaligned with its changed input.

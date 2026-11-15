@@ -46,3 +46,5 @@ docs/personal/
 
 # Local Slicer test scenes / data (not for the repo)
 TestFiles/
+tests/out/
+tests/scratch/

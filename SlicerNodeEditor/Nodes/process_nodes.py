@@ -77,6 +77,17 @@ class CropVolumeNode(LinkedModuleNode):
         self._cache['_roi_node']   = roi
         return {'volume_out': out}
 
+    def release_outputs(self):
+        for key in ('_param_node', '_roi_node'):
+            helper = self._cache.get(key)
+            try:
+                if (helper is not None and slicer.mrmlScene.GetNodeByID(
+                        helper.GetID()) is not None):
+                    slicer.mrmlScene.RemoveNode(helper)
+            except Exception:
+                pass
+        LinkedModuleNode.release_outputs(self)
+
     def route_to_viewer(self):
         out = self._cache.get('volume_out')
         if out is not None:

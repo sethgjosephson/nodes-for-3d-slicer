@@ -95,6 +95,9 @@ class RegistrationNode(SlicerBaseNode):
             # of .mrb saves and group it with the rest of the graph's
             # auto-created nodes.
             _mark_ephemeral(cli_node)
+            if not hasattr(self, '_cli_nodes'):
+                self._cli_nodes = []
+            self._cli_nodes.append(cli_node)
             node_item = getattr(self, '_executing_node_item', None)
             cli_node.AddObserver(
                 slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent,
@@ -143,6 +146,24 @@ class RegistrationNode(SlicerBaseNode):
                 "Check the Error Log for details.")
         except Exception:
             pass
+
+    def release_outputs(self):
+        cli = getattr(self, '_async_cli_node', None)
+        if cli is not None:
+            try:
+                cli.Cancel()
+            except Exception:
+                pass
+        self._async_cli_node = None
+        self._async_pending = False
+        for cli in getattr(self, '_cli_nodes', []):
+            try:
+                if slicer.mrmlScene.GetNodeByID(cli.GetID()) is not None:
+                    slicer.mrmlScene.RemoveNode(cli)
+            except Exception:
+                pass
+        self._cli_nodes = []
+        SlicerBaseNode.release_outputs(self)
 
     def route_to_viewer(self):
         node = self._cache.get('registered_out')

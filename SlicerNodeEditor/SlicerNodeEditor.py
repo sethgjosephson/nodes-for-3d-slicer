@@ -693,21 +693,23 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     ni.node_data._clear_input_observers()
                 except Exception:
                     pass
-            self._clear_graph()
+            # The closing scene deletes every MRML node itself.
+            self._clear_graph(release=False)
         except Exception:
             import traceback; traceback.print_exc()
         finally:
             self._loading_graph = False
 
-    def _clear_graph(self):
+    def _clear_graph(self, release=True):
         """Tear down every node, reset router slots, clear undo / redo /
         clipboard, and blank the properties panel.  Used by the Clear
-        toolbar button, the explicit "throw it all away" action."""
+        toolbar button, the explicit "throw it all away" action.
+        With `release`, the MRML nodes the graph created are removed."""
         scene = self._canvas.node_scene if self._canvas is not None else None
         if scene is None:
             return
         for ni in list(scene.all_node_items()):
-            scene.remove_node(ni)
+            scene.remove_node(ni, release=release)
         # Reset viewer slot bindings
         if self._router is not None:
             try:

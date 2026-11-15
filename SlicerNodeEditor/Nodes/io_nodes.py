@@ -111,6 +111,10 @@ class SampleDataNode(SlicerBaseNode):
 
         return {'volume_out': primary}
 
+    def release_outputs(self):
+        _cleanup_loaded_nodes(self)
+        SlicerBaseNode.release_outputs(self)
+
     def route_to_viewer(self):
         node = self._cache.get('volume_out')
         if node:

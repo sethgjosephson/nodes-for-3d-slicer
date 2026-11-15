@@ -190,14 +190,26 @@ class NodeEditorScene(QGraphicsScene):
         except Exception:
             pass
 
-    def remove_node(self, node_item):
-        """Remove node and all its connected edges."""
+    def remove_node(self, node_item, release=True):
+        """
+        Remove node and all its connected edges.
+
+        With `release` (the default) the MRML nodes it created are
+        removed from the Slicer scene too. Pass False when the node's
+        data object lives on (undo and redo re-attach it to a new item)
+        or when the MRML scene is being closed anyway.
+        """
         # Drop any MRML observers this node holds before its references go
         # away, so we don't leak observer tags on lingering MRML nodes.
         try:
             node_item.node_data._clear_input_observers()
         except Exception:
             pass
+        if release:
+            try:
+                node_item.node_data.release_outputs()
+            except Exception:
+                import traceback; traceback.print_exc()
         for edge in self.edges_of(node_item):
             self.remove_edge(edge)
         self.removeItem(node_item)
@@ -589,7 +601,7 @@ class NodeEditorScene(QGraphicsScene):
                     self._router_ref._slots = {i: None for i in range(1, 11)}
                 except Exception:
                     pass
-            self.deserialise(state, self._router_ref)
+            self.deserialise(state, self._router_ref, reuse=True)
         finally:
             self._suppress_undo_capture = False
 
@@ -712,6 +724,7 @@ class NodeEditorScene(QGraphicsScene):
             cls = ni.node_data.__class__
             nodes.append({
                 'id':       i,
+                'uid':      ni.node_data.uid,
                 # 'type' is the stable id; 'class'/'module' are kept so
                 # builds predating the registry can still load the file.
                 'type':     cls.NODE_TYPE or cls.__name__,
@@ -736,8 +749,27 @@ class NodeEditorScene(QGraphicsScene):
 
         return {'version': GRAPH_FORMAT_VERSION, 'nodes': nodes, 'edges': edges}
 
-    def deserialise(self, data, router=None):
-        """Restore a graph from a serialised dict."""
+    def _input_signature(self, node_item):
+        """What feeds each input of node_item: a comparable tuple of
+        (input port, upstream node uid, upstream port, upstream disabled)."""
+        sig = []
+        for edge in self.get_incoming_edges(node_item):
+            up = edge.source_port.node_item.node_data
+            sig.append((edge.target_port.port_name, up.uid,
+                        edge.source_port.port_name))
+        return tuple(sorted(sig))
+
+    def deserialise(self, data, router=None, reuse=False):
+        """
+        Restore a graph from a serialised dict.
+
+        With `reuse` (undo and redo), a node in `data` whose uid matches
+        a node now on the canvas keeps that node's data object, so its
+        computed outputs survive. Such a node stays clean only if its
+        properties, disabled state and input connections are unchanged;
+        otherwise it and everything downstream is marked dirty. Nodes
+        that are on the canvas but not in `data` release their outputs.
+        """
         version = data.get('version', 0)
         if version > GRAPH_FORMAT_VERSION:
             raise ValueError(
@@ -746,23 +778,51 @@ class NodeEditorScene(QGraphicsScene):
                 f"{GRAPH_FORMAT_VERSION}). Update the extension to load it.")
 
         # Clear existing content
+        old = {}      # uid → (node data, was dirty, input signature)
+        if reuse:
+            for ni in self.all_node_items():
+                nd_old = ni.node_data
+                old[nd_old.uid] = (nd_old, nd_old.is_dirty,
+                                   self._input_signature(ni))
         for ni in self.all_node_items():
-            self.remove_node(ni)
+            self.remove_node(ni, release=not reuse)
 
         index = {}    # serialised id → NodeItem
+        kept = {}     # uid → NodeItem, for nodes that kept their data object
+        changed = []  # kept NodeItems whose own settings differ
         skipped = []
         for nd in data.get('nodes', []):
             cls = _resolve_node_class(nd)
             if cls is None:
                 skipped.append(nd.get('type') or nd.get('class') or '?')
                 continue
-            node  = cls()
-            for k, v in nd.get('props', {}).items():
-                node.set_property(k, v)
+            uid = nd.get('uid')
+            previous = old.get(uid) if uid else None
+            if previous is not None and previous[0].__class__ is cls:
+                node = previous[0]
+                was_dirty = previous[1]
+                differs = (bool(nd.get('disabled'))
+                           != bool(node.is_disabled))
+                for k, v in nd.get('props', {}).items():
+                    if node.get_property(k) != v:
+                        node.set_property(k, v)
+                        differs = True
+                node.is_dirty = was_dirty or differs
+            else:
+                previous = None
+                node = cls()
+                if uid:
+                    node.uid = uid
+                for k, v in nd.get('props', {}).items():
+                    node.set_property(k, v)
             ni    = self.add_node(node, QPointF(nd['x'], nd['y']))
-            if nd.get('disabled'):
-                ni.node_data.is_disabled = True
-                ni.update()
+            ni.node_data.is_disabled = bool(nd.get('disabled'))
+            ni.update()
+            if previous is not None:
+                kept[uid] = ni
+                node._executing_node_item = ni
+                if differs:
+                    changed.append(ni)
             if nd.get('slot') and router:
                 router._slots[nd['slot']] = ni
                 ni.set_viewer_slot(nd['slot'])
@@ -777,6 +837,29 @@ class NodeEditorScene(QGraphicsScene):
             dst_port = dst_ni.get_port(ed['dst_port'], is_input=True)
             if src_port and dst_port:
                 self.connect_ports(src_port, dst_port)
+
+        # Nodes that were on the canvas and are not in `data` are gone.
+        for uid, (node, _dirty, _sig) in old.items():
+            if uid not in kept:
+                try:
+                    node.release_outputs()
+                except Exception:
+                    import traceback; traceback.print_exc()
+        # A kept node whose settings or input connections changed must
+        # run again, and so must everything downstream of it.
+        for uid, ni in kept.items():
+            if self._input_signature(ni) != old[uid][2]:
+                changed.append(ni)
+        for ni in changed:
+            self.mark_dirty_from(ni)
+        # Kept nodes that are still clean will not run again, so rebind
+        # their input observers to the new canvas items here.
+        for ni in kept.values():
+            if not ni.node_data.is_dirty:
+                try:
+                    ni.node_data._refresh_input_observers(ni)
+                except Exception:
+                    import traceback; traceback.print_exc()
 
         if skipped:
             print(f"[NodeEditor] deserialise: skipped unknown node "

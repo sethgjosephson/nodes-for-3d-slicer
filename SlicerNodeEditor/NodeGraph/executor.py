@@ -197,8 +197,15 @@ class Executor:
         # must not mirror in - that would let upstream MRML refs sneak into
         # the "reuse my own output" path and cause re-execution to write
         # into upstream nodes (the bug behind the double-smoothing).
+        # An output that is one of this node's own inputs (a wrapper node
+        # handing its input on) belongs to the upstream node, not to this one.
         if not passthrough:
-            node_data._owned_outputs.update(result or {})
+            input_ids = {v.GetID() for v in inputs.values() if v is not None}
+            for port_name, value in (result or {}).items():
+                if value is not None and value.GetID() in input_ids:
+                    node_data._owned_outputs.pop(port_name, None)
+                else:
+                    node_data._owned_outputs[port_name] = value
 
         # Async CLI still running: outputs are placeholders. Stay dirty,
         # keep descendants blocked; _notify_async_complete finishes the
