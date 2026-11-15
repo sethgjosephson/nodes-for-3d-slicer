@@ -12,6 +12,9 @@
 - [x] Upstream MRML edits from any source mark downstream nodes dirty
 - [x] Property changes re-run the active viewer slot (opt-out per node via `AUTO_EXECUTE`)
 - [x] Disabled nodes pass their input through
+- [x] Input changes are detected from the data, not from any modified event
+- [x] Edits made outside the graph re-run the viewed chain
+- [x] Automatic re-runs keep the view's zoom, pan and layout
 
 ### Scene integration
 - [x] Graph-created MRML nodes are not saved with the scene and are grouped under a "Node Editor (auto)" folder
@@ -19,10 +22,13 @@
 - [x] Graph is stored in the scene and restored when an `.mrb` is loaded
 - [x] Graph files carry a format version and stable node type ids
 - [x] Segment Editor and Markups nodes warn when their input changes under hand-edited data
+- [x] Deleting a node removes the data it created
+- [x] Hand-placed markups and the crop ROI are saved in the graph
 
 ### Editing
 - [x] Tab search with category headers
 - [x] Copy, cut, paste, undo, redo
+- [x] Undo and redo keep computed data for unchanged nodes
 - [x] Auto-connect on add and paste
 - [x] Drop a node on an edge to insert it
 - [x] Shake a node to disconnect it
@@ -35,7 +41,11 @@
 - [x] Sample Data, Load Volume, Save Volume
 - [x] Threshold (keep values or binary mask), Gaussian Smooth, Median Filter
 - [x] Simple Filter (14 SimpleITK filters)
-- [x] Crop Volume
+- [x] Crop Volume (own ROI or a connected ROI markup)
+- [x] Volume Math, Resample Volume
+- [x] New Markup, Save Data
+- [x] Segment Filter, Mask Volume, Label Map to Segmentation
+- [x] Surface Model, Segment Statistics
 - [x] Segmentation, Segment Editor, Segmentations
 - [x] Registration (BRAINSFit, async), Apply Transform, Transforms
 - [x] Volume Rendering, Models, Volumes, Markups
@@ -44,6 +54,7 @@
 ### Testing
 - [x] Self-tests for scene, nodes, edges, execution, failure isolation, Simple Filter, volume rendering display node, and serialization
 - [x] `SLICER_NODE_EDITOR_DEBUG=1` logging switch
+- [x] Workflow tests that drive the canvas inside Slicer (`tests/`)
 
 ## Planned
 
@@ -58,10 +69,8 @@
 - [ ] Drag a volume from the Data module onto the canvas
 
 ### Nodes
-- [ ] Label map to segmentation
 - [ ] Grow from Seeds
-- [ ] Surface model (marching cubes)
-- [ ] Segment Statistics
+- [ ] Apply Transform for segmentations, models and markups
 - [ ] Line Profile
 - [ ] DICOM loader
 - [ ] Python script
