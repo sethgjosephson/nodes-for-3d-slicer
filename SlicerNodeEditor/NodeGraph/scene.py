@@ -291,6 +291,10 @@ class NodeEditorScene(QGraphicsScene):
             self.removeItem(self._drag_edge)
             self._drag_edge        = None
             self._drag_source_port = None
+            # Let Qt finish the release: this is where it takes the mouse
+            # grab back from the port. Without it the port keeps the grab
+            # and the next click anywhere starts another drag from it.
+            QGraphicsScene.mouseReleaseEvent(self, event)
             event.accept()
             return
 

@@ -73,6 +73,7 @@ class NodeItem(QGraphicsObject):
 
         # Shake-to-disconnect tracking
         self._motion_history = []   # list of (time, x, y)
+        self._shaken_this_drag = False
 
     # ------------------------------------------------------------------
     # QGraphicsItem
@@ -229,6 +230,14 @@ class NodeItem(QGraphicsObject):
         # After drag ends, give the scene a chance to auto-insert this
         # node into a pipe if it was dropped on top of one.
         scene = self.scene()
+        if self._shaken_this_drag:
+            # The shake just spliced the edge back together, and that edge
+            # now runs under this node. Dropping here must not insert the
+            # node straight back into it.
+            self._shaken_this_drag = False
+            if scene is not None and hasattr(scene, 'clear_drop_highlight'):
+                scene.clear_drop_highlight()
+            return
         if scene is not None and hasattr(scene, 'try_insert_into_pipe'):
             scene.try_insert_into_pipe(self)
 
@@ -241,7 +250,8 @@ class NodeItem(QGraphicsObject):
             scene = self.scene()
             scene.on_node_moved(self)
             self._track_shake_motion(value)
-            if hasattr(scene, 'update_drop_highlight'):
+            if (hasattr(scene, 'update_drop_highlight')
+                    and not self._shaken_this_drag):
                 scene.update_drop_highlight(self)
         try:
             return QGraphicsObject.itemChange(self, change, value)
@@ -273,6 +283,7 @@ class NodeItem(QGraphicsObject):
             scene = self.scene()
             if scene is not None and hasattr(scene, 'disconnect_all_edges'):
                 scene.disconnect_all_edges(self)
+                self._shaken_this_drag = True
             self._motion_history.clear()
 
     # ------------------------------------------------------------------

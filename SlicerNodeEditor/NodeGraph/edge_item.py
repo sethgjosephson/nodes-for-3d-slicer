@@ -26,7 +26,10 @@ class EdgeItem(QGraphicsPathItem):
         self._float_end  = QPointF(0, 0) # used when target_port is None
         self._drop_highlight = False     # set while a node is hovering for splice
 
-        self.setZValue(1)               # below ports (z=2), above node body (z=0)
+        # Below the nodes. Ports are children of their node, so an edge
+        # stacked above the node would also sit above its ports and take
+        # the click meant to start a second connection from a used port.
+        self.setZValue(-1)
         self.setFlag(self.ItemIsSelectable, True)
         self.setAcceptHoverEvents(True)
 

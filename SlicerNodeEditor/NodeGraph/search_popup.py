@@ -159,7 +159,22 @@ class SearchPopup(QWidget):
                    if text in cls.NODE_NAME.lower()
                    or text in cls.CATEGORY.lower()]
 
-        for cls in sorted(matches, key=lambda c: c.NODE_NAME):
+        def rank(cls):
+            # Names that start with the text first, then names with a
+            # word that starts with it, then other name matches, then
+            # nodes that match only by category.
+            name = cls.NODE_NAME.lower()
+            if name.startswith(text):
+                tier = 0
+            elif any(word.startswith(text) for word in name.split()):
+                tier = 1
+            elif text in name:
+                tier = 2
+            else:
+                tier = 3
+            return (tier, cls.NODE_NAME)
+
+        for cls in sorted(matches, key=rank):
             item = QListWidgetItem(cls.NODE_NAME)
             self._list.addItem(item)
             self._row_to_cls[self._list.count - 1] = cls
