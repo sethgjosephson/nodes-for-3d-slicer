@@ -1,5 +1,4 @@
-# Undo keeps computed data, deleting releases it, and an edit made outside
-# the graph marks the right nodes dirty.
+# Undo keeps computed data, deleting releases it, and an edit made outside the graph marks the right nodes dirty.
 import numpy as np
 
 g = G(editor)

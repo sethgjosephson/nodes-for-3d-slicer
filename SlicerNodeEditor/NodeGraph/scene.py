@@ -1,9 +1,7 @@
 """
-NodeEditorScene: QGraphicsScene managing nodes, edges, and the
-edge-drag state machine.
+NodeEditorScene: QGraphicsScene managing nodes, edges, and the edge-drag state machine.
 
-Topology queries used by Executor live here so neither NodeItem nor
-Executor needs to know about the full graph.
+Topology queries used by Executor live here so neither NodeItem nor Executor needs to know about the full graph.
 """
 
 from ._qt import (QGraphicsScene, QPointF, Qt, Signal,
@@ -16,20 +14,19 @@ from .constants  import (CANVAS_BG, GRID_DOT_COLOR, GRID_SPACING,
                           NODE_WIDTH, NODE_TITLE_HEIGHT, NODE_BODY_HEIGHT)
 
 
-# Version of the serialised graph format. Bump when a change would stop
-# older builds from loading a newly saved graph. Loaders accept any file
-# with version <= GRAPH_FORMAT_VERSION (missing version = legacy = 0).
+# Version of the serialized graph format.
+# Bump when a change would stop older builds from loading a newly saved graph.
+# Loaders accept any file with version <= GRAPH_FORMAT_VERSION (missing version = legacy = 0).
 GRAPH_FORMAT_VERSION = 1
 
 
 def _resolve_node_class(nd):
     """
-    Resolve a serialised node entry to its Python class.
+    Resolve a serialized node entry to its Python class.
 
-    Prefers the stable 'type' id via Nodes.NODE_TYPE_REGISTRY so saved
-    graphs survive class renames and module moves. Falls back to the
-    legacy module+class import path for graphs saved before the registry
-    existed. Returns None if neither resolves.
+    Prefers the stable 'type' id via Nodes.NODE_TYPE_REGISTRY so saved graphs survive class renames and module moves.
+    Falls back to the legacy module+class import path for graphs saved before the registry existed.
+    Returns None if neither resolves.
     """
     type_id = nd.get('type') or nd.get('class')
     if type_id:
@@ -50,8 +47,7 @@ def _resolve_node_class(nd):
 
 def _node_position(node_item):
     """
-    Return the QPointF position of a NodeItem, regardless of whether
-    PythonQt exposes `pos` as a property or a method.
+    Return the QPointF position of a NodeItem, regardless of whether PythonQt exposes `pos` as a property or a method.
     """
     p = node_item.pos
     if callable(p):
@@ -64,8 +60,8 @@ def _node_position(node_item):
 
 class NodeEditorScene(QGraphicsScene):
     """
-    Central scene.  Owns the list of edges and drives the edge-drag
-    state machine.
+    Central scene.
+    Owns the list of edges and drives the edge-drag state machine.
 
     Signals
     -------
@@ -79,9 +75,8 @@ class NodeEditorScene(QGraphicsScene):
         super().__init__(parent)
 
         self._edges            = []          # [EdgeItem]
-        self._node_items       = []          # [NodeItem], kept because PythonQt
-                                             # loses subclass identity when items
-                                             # round-trip through QGraphicsScene
+        # _node_items is kept because PythonQt loses subclass identity when items round-trip through QGraphicsScene.
+        self._node_items       = []          # [NodeItem]
         self._drag_edge        = None        # temp EdgeItem during drag
         self._drag_source_port = None        # PortItem where drag started
         self._selection_listener = None      # plain Python callback (reliable)
@@ -148,8 +143,7 @@ class NodeEditorScene(QGraphicsScene):
         self._selection_listener = callback
 
     def set_property_change_listener(self, callback):
-        """Register a callback fired when any node's property changes,
-        so the canvas can schedule a debounced auto-rerun."""
+        """Register a callback fired when any node's property changes, so the canvas can schedule a debounced auto-rerun."""
         self._property_change_listener = callback
 
     def notify_property_changed(self, node_item):
@@ -162,16 +156,13 @@ class NodeEditorScene(QGraphicsScene):
         self.notify_mutation()
 
     def set_mutation_listener(self, callback):
-        """Register a callback fired whenever the graph changes
-        structurally OR a property is edited.  Used by the widget to
-        keep the .mrb parameter-node copy of the graph in sync."""
+        """Register a callback fired whenever the graph changes structurally OR a property is edited.
+        Used by the widget to keep the .mrb parameter-node copy of the graph in sync."""
         self._mutation_listener = callback
 
     def notify_mutation(self):
-        """Fire the mutation listener.  Called internally by capture_undo
-        and notify_property_changed; also callable directly by external
-        code that modifies the graph in ways those paths don't cover
-        (e.g. _clear_graph from the widget)."""
+        """Fire the mutation listener.
+        Called internally by capture_undo and notify_property_changed; also callable directly by external code that modifies the graph in ways those paths don't cover (e.g. _clear_graph from the widget)."""
         if self._mutation_listener is not None:
             try:
                 self._mutation_listener()
@@ -194,13 +185,10 @@ class NodeEditorScene(QGraphicsScene):
         """
         Remove node and all its connected edges.
 
-        With `release` (the default) the MRML nodes it created are
-        removed from the Slicer scene too. Pass False when the node's
-        data object lives on (undo and redo re-attach it to a new item)
-        or when the MRML scene is being closed anyway.
+        With `release` (the default) the MRML nodes it created are removed from the Slicer scene too.
+        Pass False when the node's data object lives on (undo and redo re-attach it to a new item) or when the MRML scene is being closed anyway.
         """
-        # Drop any MRML observers this node holds before its references go
-        # away, so we don't leak observer tags on lingering MRML nodes.
+        # Drop any MRML observers this node holds before its references go away, so we don't leak observer tags on lingering MRML nodes.
         try:
             node_item.node_data._clear_input_observers()
         except Exception:
@@ -228,7 +216,8 @@ class NodeEditorScene(QGraphicsScene):
 
     def connect_ports(self, source_port, target_port):
         """
-        Validate and create a permanent edge.  Rules:
+        Validate and create a permanent edge.
+        Rules:
           - source must be an output port, target an input port
           - target port may not already have an incoming edge
           - no self-loops
@@ -291,9 +280,8 @@ class NodeEditorScene(QGraphicsScene):
             self.removeItem(self._drag_edge)
             self._drag_edge        = None
             self._drag_source_port = None
-            # Let Qt finish the release: this is where it takes the mouse
-            # grab back from the port. Without it the port keeps the grab
-            # and the next click anywhere starts another drag from it.
+            # Let Qt finish the release: this is where it takes the mouse grab back from the port.
+            # Without it the port keeps the grab and the next click anywhere starts another drag from it.
             QGraphicsScene.mouseReleaseEvent(self, event)
             event.accept()
             return
@@ -363,11 +351,9 @@ class NodeEditorScene(QGraphicsScene):
 
     def build_splice_out_plan(self, node_item):
         """
-        Compute pairs of (upstream_output_port, downstream_input_port)
-        that should be connected after `node_item` is removed, so that
-        a node in the middle of a pipe leaves the rest of the pipeline
-        intact.  Pairs each incoming edge with a type-compatible outgoing
-        edge.  Doesn't modify the graph; caller decides what to do.
+        Compute pairs of (upstream_output_port, downstream_input_port) that should be connected after `node_item` is removed, so that a node in the middle of a pipe leaves the rest of the pipeline intact.
+        Pairs each incoming edge with a type-compatible outgoing edge.
+        Doesn't modify the graph; caller decides what to do.
         """
         incoming = [e for e in self._edges
                     if e.target_port and e.target_port.node_item is node_item]
@@ -394,10 +380,8 @@ class NodeEditorScene(QGraphicsScene):
 
     def disconnect_all_edges(self, node_item):
         """
-        Remove every edge connected to this node.  If the node sits in
-        the middle of a pipe (has both incoming AND outgoing edges with
-        compatible types), splice it OUT: directly connect upstream
-        to downstream so the rest of the pipeline stays intact.
+        Remove every edge connected to this node.
+        If the node sits in the middle of a pipe (has both incoming AND outgoing edges with compatible types), splice it OUT: directly connect upstream to downstream so the rest of the pipeline stays intact.
         """
         if not self.edges_of(node_item):
             return
@@ -425,9 +409,8 @@ class NodeEditorScene(QGraphicsScene):
 
     def try_auto_connect(self, source_node, new_node):
         """
-        Wire `new_node` after `source_node`.  If source_node already had
-        outgoing edges and new_node has a compatible output, splice
-        new_node into the pipe (source → new → old downstream).
+        Wire `new_node` after `source_node`.
+        If source_node already had outgoing edges and new_node has a compatible output, splice new_node into the pipe (source → new → old downstream).
         """
         if source_node is None or new_node is None or source_node is new_node:
             return False
@@ -507,8 +490,7 @@ class NodeEditorScene(QGraphicsScene):
         return None
 
     def update_drop_highlight(self, node_item):
-        """While `node_item` is being dragged, highlight the edge it
-        would splice into if released right now."""
+        """While `node_item` is being dragged, highlight the edge it would splice into if released right now."""
         candidate = self._find_splice_edge(node_item)
         new_edge  = candidate[0] if candidate else None
         if new_edge is self._drop_highlight_edge:
@@ -553,8 +535,8 @@ class NodeEditorScene(QGraphicsScene):
         self._router_ref = router
 
     def capture_undo(self):
-        """Snapshot the current graph state for undo.  Called by user-action
-        entry points BEFORE making structural changes."""
+        """Snapshot the current graph state for undo.
+        Called by user-action entry points BEFORE making structural changes."""
         if self._suppress_undo_capture:
             return
         try:
@@ -562,8 +544,7 @@ class NodeEditorScene(QGraphicsScene):
         except Exception:
             import traceback; traceback.print_exc()
             return
-        # Skip if identical to the previous snapshot; avoids duplicate
-        # entries when several capture points fire for the same logical action.
+        # Skip if identical to the previous snapshot; avoids duplicate entries when several capture points fire for the same logical action.
         if self._undo_stack and self._undo_stack[-1] == snap:
             return
         self._undo_stack.append(snap)
@@ -600,7 +581,7 @@ class NodeEditorScene(QGraphicsScene):
         return True
 
     def _restore_state(self, state):
-        """Wipe and reload from a serialised snapshot."""
+        """Wipe and reload from a serialized snapshot."""
         self._suppress_undo_capture = True
         try:
             # Reset router slots; referenced NodeItems will be recreated
@@ -618,8 +599,8 @@ class NodeEditorScene(QGraphicsScene):
     # ------------------------------------------------------------------
 
     def copy_selection(self):
-        """Return a clipboard dict for the currently-selected nodes (and
-        any edges fully contained within the selection).  None if empty."""
+        """Return a clipboard dict for the currently-selected nodes (and any edges fully contained within the selection).
+        None if empty."""
         selected = self.selected_node_items()
         if not selected:
             return None
@@ -659,7 +640,7 @@ class NodeEditorScene(QGraphicsScene):
         return {'nodes': nodes_data, 'edges': edges_data}
 
     def paste_clipboard(self, clipboard, scene_pos=None):
-        """Paste a clipboard dict, optionally re-centred at scene_pos."""
+        """Paste a clipboard dict, optionally re-centered at scene_pos."""
         if not clipboard or not clipboard.get('nodes'):
             return []
 
@@ -709,9 +690,7 @@ class NodeEditorScene(QGraphicsScene):
     # ------------------------------------------------------------------
 
     def mousePressEvent(self, event):
-        # Click on empty space → deselect (but keep the properties panel
-        # showing whatever was last double-clicked, so dragging around
-        # doesn't keep wiping the user's context).
+        # Click on empty space → deselect (but keep the properties panel showing whatever was last double-clicked, so dragging around doesn't keep wiping the user's context).
         item = self.itemAt(event.scenePos(),
                            self.views()[0].transform() if self.views() else QTransform())
         if item is None:
@@ -719,11 +698,11 @@ class NodeEditorScene(QGraphicsScene):
         QGraphicsScene.mousePressEvent(self, event)
 
     # ------------------------------------------------------------------
-    # Serialisation helpers
+    # Serialization helpers
     # ------------------------------------------------------------------
 
     def serialise(self):
-        """Return a JSON-serialisable dict describing the full graph."""
+        """Return a JSON-serializable dict describing the full graph."""
         nodes = []
         node_ids = {}
         for i, ni in enumerate(self.all_node_items()):
@@ -733,8 +712,7 @@ class NodeEditorScene(QGraphicsScene):
             nodes.append({
                 'id':       i,
                 'uid':      ni.node_data.uid,
-                # 'type' is the stable id; 'class'/'module' are kept so
-                # builds predating the registry can still load the file.
+                # 'type' is the stable id; 'class'/'module' are kept so builds predating the registry can still load the file.
                 'type':     cls.NODE_TYPE or cls.__name__,
                 'class':    cls.__name__,
                 'module':   cls.__module__,
@@ -758,8 +736,7 @@ class NodeEditorScene(QGraphicsScene):
         return {'version': GRAPH_FORMAT_VERSION, 'nodes': nodes, 'edges': edges}
 
     def _input_signature(self, node_item):
-        """What feeds each input of node_item: a comparable tuple of
-        (input port, upstream node uid, upstream port, upstream disabled)."""
+        """What feeds each input of node_item: a comparable tuple of (input port, upstream node uid, upstream port, upstream disabled)."""
         sig = []
         for edge in self.get_incoming_edges(node_item):
             up = edge.source_port.node_item.node_data
@@ -769,14 +746,11 @@ class NodeEditorScene(QGraphicsScene):
 
     def deserialise(self, data, router=None, reuse=False):
         """
-        Restore a graph from a serialised dict.
+        Restore a graph from a serialized dict.
 
-        With `reuse` (undo and redo), a node in `data` whose uid matches
-        a node now on the canvas keeps that node's data object, so its
-        computed outputs survive. Such a node stays clean only if its
-        properties, disabled state and input connections are unchanged;
-        otherwise it and everything downstream is marked dirty. Nodes
-        that are on the canvas but not in `data` release their outputs.
+        With `reuse` (undo and redo), a node in `data` whose uid matches a node now on the canvas keeps that node's data object, so its computed outputs survive.
+        Such a node stays clean only if its properties, disabled state and input connections are unchanged; otherwise it and everything downstream is marked dirty.
+        Nodes that are on the canvas but not in `data` release their outputs.
         """
         version = data.get('version', 0)
         if version > GRAPH_FORMAT_VERSION:
@@ -795,7 +769,7 @@ class NodeEditorScene(QGraphicsScene):
         for ni in self.all_node_items():
             self.remove_node(ni, release=not reuse)
 
-        index = {}    # serialised id → NodeItem
+        index = {}    # serialized id → NodeItem
         kept = {}     # uid → NodeItem, for nodes that kept their data object
         changed = []  # kept NodeItems whose own settings differ
         skipped = []
@@ -853,20 +827,18 @@ class NodeEditorScene(QGraphicsScene):
                     node.release_outputs()
                 except Exception:
                     import traceback; traceback.print_exc()
-        # Reconnecting the edges marked every connected node dirty. Put
-        # the kept nodes back to the state they were in.
+        # Reconnecting the edges marked every connected node dirty.
+        # Put the kept nodes back to the state they were in.
         for uid, ni in kept.items():
             ni.node_data.is_dirty = old[uid][1]
             ni.update()
-        # A kept node whose settings or input connections changed must
-        # run again, and so must everything downstream of it.
+        # A kept node whose settings or input connections changed must run again, and so must everything downstream of it.
         for uid, ni in kept.items():
             if self._input_signature(ni) != old[uid][2]:
                 changed.append(ni)
         for ni in changed:
             self.mark_dirty_from(ni)
-        # Kept nodes that are still clean will not run again, so rebind
-        # their input observers to the new canvas items here.
+        # Kept nodes that are still clean will not run again, so rebind their input observers to the new canvas items here.
         for ni in kept.values():
             if not ni.node_data.is_dirty:
                 try:

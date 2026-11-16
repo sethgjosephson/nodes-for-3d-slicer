@@ -2,10 +2,8 @@
 Runs one test script inside Slicer and exits.
 
 Started by tests/run.sh as Slicer's --python-script.
-Reads NODE_EDITOR_TEST (path of the script to run) and NODE_EDITOR_OUT
-(path of the log file) from the environment.
-The script runs with `slicer`, `editor` (the Node Editor module widget) and
-the helpers from tests/graph_helpers.py in its namespace.
+Reads NODE_EDITOR_TEST (path of the script to run) and NODE_EDITOR_OUT (path of the log file) from the environment.
+The script runs with `slicer`, `editor` (the Node Editor module widget) and the helpers from tests/graph_helpers.py in its namespace.
 The log ends with a line "RESULT: PASS" or "RESULT: FAIL".
 """
 

@@ -15,13 +15,10 @@ class VolumeRenderingNode(LinkedModuleNode):
     OUTPUT_PORTS   = []
     INPUT_SETTERS  = {'volume_in': ('setMRMLVolumeNode', 'setMRMLNode')}
 
-    # No PROPERTIES; settings live in the native VR module widget,
-    # which Slicer shows automatically when this node is selected.
+    # No PROPERTIES; settings live in the native VR module widget, which Slicer shows automatically when this node is selected.
 
-    # Attribute on the VR display node recording the volume property's
-    # MTime as of our last automatic transfer-function sync. If the
-    # property's MTime no longer matches, the user (or a preset) has
-    # edited it: it is now hand-edited state and we never touch it again.
+    # Attribute on the VR display node recording the volume property's MTime as of our last automatic transfer-function sync.
+    # If the property's MTime no longer matches, the user (or a preset) has edited it: it is now hand-edited state and we never touch it again.
     VR_PROP_MTIME_ATTR = 'NodeEditor.AutoVRPropMTime'
 
     def execute(self, inputs):
@@ -35,29 +32,19 @@ class VolumeRenderingNode(LinkedModuleNode):
 
         dn = self._resolve_display_node(vr_logic, node)
 
-        # The display node is created once, but the volume's DATA changes
-        # on every upstream re-cook. Re-sync the transfer function from
-        # the volume's current window/level so the rendering tracks the
-        # data, unless the user has hand-tweaked the VR property.
+        # The display node is created once, but the volume's DATA changes on every upstream re-run.
+        # Re-sync the transfer function from the volume's current window/level so the rendering tracks the data, unless the user has hand-tweaked the VR property.
         self._refresh_transfer_function(vr_logic, dn)
 
         return {}
 
     def _resolve_display_node(self, vr_logic, volume):
         """
-        Return the ONE VR display node this graph node owns, creating it
-        on first use and re-attaching it when the incoming volume's
-        identity changes.
+        Return the ONE VR display node this graph node owns, creating it on first use and re-attaching it when the incoming volume's identity changes.
 
-        Identity changes are routine here: disabling the filter that
-        feeds this node (D-key passthrough) swaps in a different
-        upstream MRML volume. Keying the display node by volume (the
-        old behavior) made Slicer mint a fresh display node with a
-        default fitted ROI on every such swap, so the user's cropping
-        ROI and transfer function appeared to randomly reset. Owning
-        one display node per GRAPH node keeps view state stable: the
-        ROI and volume property travel with the display node across
-        re-attachments.
+        Identity changes are routine here: disabling the filter that feeds this node (D-key passthrough) swaps in a different upstream MRML volume.
+        Keying the display node by volume (the old behavior) made Slicer mint a fresh display node with a default fitted ROI on every such swap, so the user's cropping ROI and transfer function appeared to randomly reset.
+        Owning one display node per GRAPH node keeps view state stable: the ROI and volume property travel with the display node across re-attachments.
         """
         dn = getattr(self, '_vr_display_node', None)
         if dn is not None:
@@ -68,9 +55,7 @@ class VolumeRenderingNode(LinkedModuleNode):
                 dn = None
 
         if dn is None:
-            # First use (or the display node died with a scene close):
-            # adopt the volume's existing VR display node if it has one,
-            # else create the default set (display + property + ROI).
+            # First use (or the display node died with a scene close): adopt the volume's existing VR display node if it has one, else create the default set (display + property + ROI).
             dn = vr_logic.GetFirstVolumeRenderingDisplayNode(volume)
             created = False
             if dn is None and hasattr(vr_logic, 'CreateDefaultVolumeRenderingNodes'):
@@ -99,9 +84,8 @@ class VolumeRenderingNode(LinkedModuleNode):
                 and owner.GetID() == volume.GetID()):
             return dn
 
-        # Volume identity changed (passthrough toggle, upstream rewire):
-        # move OUR display node to the new volume. ROI and transfer
-        # function ride along on the display node untouched.
+        # Volume identity changed (passthrough toggle, upstream rewire): move OUR display node to the new volume.
+        # ROI and transfer function ride along on the display node untouched.
         try:
             if owner is not None:
                 for i in range(owner.GetNumberOfDisplayNodes()):
@@ -115,8 +99,7 @@ class VolumeRenderingNode(LinkedModuleNode):
 
     def _refresh_transfer_function(self, vr_logic, dn):
         """
-        Keep the transfer function usable as the data changes, without
-        stomping presets or hand-tweaks:
+        Keep the transfer function usable as the data changes, without stomping presets or hand-tweaks:
 
         - A property the user has edited (preset applied, curve dragged)
           is edit-state: never touched. Detected via the property
@@ -160,8 +143,7 @@ class VolumeRenderingNode(LinkedModuleNode):
                        f"failed: {exc}")
                 return
 
-        # Stamp the state we're accepting (preset or synced) so a later
-        # user edit is detectable as a hand-tweak.
+        # Stamp the state we're accepting (preset or synced) so a later user edit is detectable as a hand-tweak.
         try:
             dn.SetAttribute(self.VR_PROP_MTIME_ATTR, str(prop.GetMTime()))
         except Exception:
@@ -170,10 +152,8 @@ class VolumeRenderingNode(LinkedModuleNode):
     @staticmethod
     def _renders_invisibly(prop_node, volume):
         """
-        True when the scalar opacity function is essentially zero across
-        the volume's entire scalar range, i.e. the render would show
-        nothing at all. Deliberately conservative: any nonzero opacity
-        anywhere in the data range means "leave the preset alone".
+        True when the scalar opacity function is essentially zero across the volume's entire scalar range, i.e. the render would show nothing at all.
+        Deliberately conservative: any nonzero opacity anywhere in the data range means "leave the preset alone".
         """
         try:
             vp = prop_node.GetVolumeProperty()
@@ -194,9 +174,8 @@ class VolumeRenderingNode(LinkedModuleNode):
             return False
 
     def release_outputs(self):
-        """Remove the display node this graph node created, with its
-        volume property and ROI. A display node that was already on the
-        volume and only adopted here is hidden and left in place."""
+        """Remove the display node this graph node created, with its volume property and ROI.
+        A display node that was already on the volume and only adopted here is hidden and left in place."""
         dn = self._owned_display_node()
         if dn is not None:
             if getattr(self, '_vr_display_created', False):
@@ -220,10 +199,8 @@ class VolumeRenderingNode(LinkedModuleNode):
         LinkedModuleNode.release_outputs(self)
 
     def _owned_display_node(self):
-        """The display node this graph node owns, or None if it (or the
-        scene) is gone. Routing must use THIS, not a lookup by volume:
-        after a passthrough toggle the volume-keyed lookup could find a
-        different node's display."""
+        """The display node this graph node owns, or None if it (or the scene) is gone.
+        Routing must use THIS, not a lookup by volume: after a passthrough toggle the volume-keyed lookup could find a different node's display."""
         dn = getattr(self, '_vr_display_node', None)
         if dn is None:
             return None
@@ -236,10 +213,8 @@ class VolumeRenderingNode(LinkedModuleNode):
 
     def route_to_viewer(self):
         """Show this volume in 3D rendering AND keep slices populated.
-        Uses the Conventional layout (3 slices + 3D pane) so the user
-        sees both the rendering and the underlying anatomy.
-        Other volumes' VR displays are hidden so only ours is visible
-        in the 3D pane."""
+        Uses the Conventional layout (3 slices + 3D pane) so the user sees both the rendering and the underlying anatomy.
+        Other volumes' VR displays are hidden so only ours is visible in the 3D pane."""
         vol = self._cache.get('volume_in')
         target_dn = self._owned_display_node()
         target_id = target_dn.GetID() if target_dn is not None else None
@@ -284,8 +259,8 @@ class ModelsNode(LinkedModuleNode):
     INPUT_SETTERS = {'model_in': ('setMRMLModelNode', 'setMRMLNode')}
 
     def route_to_viewer(self):
-        """Hide other models; show only this one. Use Conventional layout
-        so slice context is preserved."""
+        """Hide other models; show only this one.
+        Use Conventional layout so slice context is preserved."""
         self._set_exclusive_visibility()
         slicer.app.layoutManager().setLayout(
             slicer.vtkMRMLLayoutNode.SlicerLayoutConventionalView)

@@ -1,9 +1,8 @@
 """
 ViewerSlotManager: the ten viewer slots (keys 1..9 and 0).
 
-Pressing a slot key with a node selected assigns that node to the slot
-and displays it.  Pressing it with nothing selected re-displays the
-slot's current node.
+Pressing a slot key with a node selected assigns that node to the slot and displays it.
+Pressing it with nothing selected re-displays the slot's current node.
 """
 
 
@@ -23,8 +22,8 @@ class ViewerSlotManager:
     """
 
     def __init__(self, executor=None):
-        # Slots 1..10 (0 key maps to slot 10).  Keys are ints; values are
-        # the NodeItem currently assigned to that slot, or None.
+        # Slots 1..10 (0 key maps to slot 10).
+        # Keys are ints; values are the NodeItem currently assigned to that slot, or None.
         self._slots    = {i: None for i in range(1, 11)}
         self._active   = 1
         self._executor = executor              # set after creation
@@ -51,11 +50,8 @@ class ViewerSlotManager:
 
     def refresh(self, slot: int):
         """
-        Re-run the node in this slot after a change upstream, without
-        touching the views unless what the node shows is a different
-        MRML node than before. Outputs are reused across runs, so the
-        views follow the new data by themselves; routing again would
-        reset the user's zoom, pan and layout on every edit.
+        Re-run the node in this slot after a change upstream, without touching the views unless what the node shows is a different MRML node than before.
+        Outputs are reused across runs, so the views follow the new data by themselves; routing again would reset the user's zoom, pan and layout on every edit.
         """
         self._active = slot
         node_item = self._slots.get(slot)

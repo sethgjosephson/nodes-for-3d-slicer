@@ -1,6 +1,6 @@
 """
 Visual and data-type constants shared across the node graph engine.
-All colours are (R, G, B) tuples matching Slicer's dark theme.
+All colors are (R, G, B) tuples matching Slicer's dark theme.
 """
 
 # ---------------------------------------------------------------------------
@@ -32,11 +32,11 @@ SLOT_BADGE_COLORS  = {
     7:  (210, 195,  70),   # yellow
     8:  (200,  85,  85),   # red
     9:  (110, 175,  80),   # lime
-    10: (160, 160, 160),   # grey  (bound to '0' key)
+    10: (160, 160, 160),   # gray  (bound to '0' key)
 }
 
 # ---------------------------------------------------------------------------
-# Node category title-bar colours
+# Node category title-bar colors
 # ---------------------------------------------------------------------------
 CAT_COLOR = {
     "I/O":           (42,  90, 140),
@@ -67,13 +67,13 @@ PORT_COLORS = {
     "markup":       (240, 160,  60),   # orange
     "table":        (120, 195, 175),   # mint
     "plot":         (200, 110, 175),   # pink
-    "text":         (185, 185, 185),   # light grey
+    "text":         (185, 185, 185),   # light gray
     "color":        (140, 110, 200),   # purple
     "sequence":     ( 90, 130, 235),   # bright blue (reserved for 4D)
     "dwi":          (225, 130, 110),   # salmon
     "tensor":       (235, 110, 190),   # rose
     "fibers":       (130, 215, 120),   # light green
-    "any":          (160, 160, 160),   # mid grey
+    "any":          (160, 160, 160),   # mid gray
 }
 
 # ---------------------------------------------------------------------------

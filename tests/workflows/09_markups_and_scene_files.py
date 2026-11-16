@@ -1,5 +1,4 @@
-# A hand-placed ROI drives a crop, and the graph survives JSON and .mrb
-# round trips with the placement intact.
+# A hand-placed ROI drives a crop, and the graph survives JSON and .mrb round trips with the placement intact.
 import os
 
 g = G(editor)

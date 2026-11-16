@@ -1,16 +1,11 @@
 """
-SimpleFilterNode: one node, a curated set of single-input SimpleITK
-filters.
+SimpleFilterNode: one node, a curated set of single-input SimpleITK filters.
 
-Each entry in FILTERS declares its display name, output-name suffix,
-parameter definitions, and a callable that runs the filter. The node's
-properties panel is a custom widget: a filter dropdown plus a form that
-rebuilds to show only the selected filter's parameters.
+Each entry in FILTERS declares its display name, output-name suffix, parameter definitions, and a callable that runs the filter.
+The node's properties panel is a custom widget: a filter dropdown plus a form that rebuilds to show only the selected filter's parameters.
 
-Adding a filter = adding one FILTERS entry. Parameter names must be
-unique across ALL filters (prefix them) because every parameter lives in
-the node's single _props dict; that keeps values for inactive filters
-alive across switches, and saved graphs restore them for free.
+Adding a filter = adding one FILTERS entry.
+Parameter names must be unique across ALL filters (prefix them) because every parameter lives in the node's single _props dict; that keeps values for inactive filters alive across switches, and saved graphs restore them for free.
 """
 
 import slicer
@@ -32,7 +27,8 @@ def _n4_correct(img, p):
     return sitk.N4BiasFieldCorrection(img, mask)
 
 
-# Curated filter registry. 'call' receives (image, get_property).
+# Curated filter registry.
+# 'call' receives (image, get_property).
 # 'cast_float': filter requires a real-valued input image.
 # 'auto': False keeps slow filters out of the live auto-rerun loop.
 FILTERS = {
@@ -177,10 +173,8 @@ class SimpleFilterNode(SlicerBaseNode):
     INPUT_PORTS  = [("volume_in",  "Volume", VOLUME)]
     OUTPUT_PORTS = [("volume_out", "Volume", VOLUME)]
 
-    # Union of the filter selector and every filter's parameters, so the
-    # base class seeds _props with defaults for all of them and saved
-    # graphs round-trip every value. The custom widget below shows only
-    # the ACTIVE filter's parameters.
+    # Union of the filter selector and every filter's parameters, so the base class seeds _props with defaults for all of them and saved graphs round-trip every value.
+    # The custom widget below shows only the ACTIVE filter's parameters.
     PROPERTIES = ([{'name': 'filter', 'label': 'Filter', 'type': 'enum',
                     'default': 'Gradient Magnitude',
                     'items': list(FILTERS.keys())}]
@@ -200,9 +194,7 @@ class SimpleFilterNode(SlicerBaseNode):
             self._sync_auto_execute()
 
     def _sync_auto_execute(self):
-        """Instance attribute shadows the class default so expensive
-        filters (N4) stay out of the live auto-rerun loop while cheap
-        ones keep updating live."""
+        """Instance attribute shadows the class default so expensive filters (N4) stay out of the live auto-rerun loop while cheap ones keep updating live."""
         spec = FILTERS.get(self.get_property('filter'))
         self.AUTO_EXECUTE = bool(spec.get('auto', True)) if spec else True
 

@@ -1,5 +1,4 @@
-# extensions: SlicerDMRI
-# Every graph in examples/ loads and runs to the end.
+# extensions: SlicerDMRI Every graph in examples/ loads and runs to the end.
 import glob
 import os
 
@@ -18,8 +17,7 @@ for path in paths:
     editor._on_execute_all()
     g.wait_async(900)
     wait(1500)
-    # Nodes below an asynchronous node run when it finishes; run the
-    # rest now that it has.
+    # Nodes below an asynchronous node run when it finishes; run the rest now that it has.
     editor._on_execute_all()
     g.wait_async(900)
     wait(800)

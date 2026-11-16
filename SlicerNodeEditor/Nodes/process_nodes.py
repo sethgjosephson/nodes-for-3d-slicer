@@ -8,16 +8,11 @@ class CropVolumeNode(LinkedModuleNode):
     """
     Crop a volume using Slicer's Crop Volume module.
 
-    Connect a volume; on activation an ROI is auto-created (if not already
-    cached), the Crop Volume module's parameter node is wired up, and
-    pressing 1 (or Execute) runs the crop and outputs the cropped volume.
-    Double-click opens the Crop Volume module so the user can adjust the
-    ROI / parameters directly.
+    Connect a volume; on activation an ROI is auto-created (if not already cached), the Crop Volume module's parameter node is wired up, and pressing 1 (or Execute) runs the crop and outputs the cropped volume.
+    Double-click opens the Crop Volume module so the user can adjust the ROI / parameters directly.
 
-    The ROI is fitted to the input once, when it is created. After that
-    it belongs to the user: dragging it in the views re-runs the crop,
-    and its center and size are kept in the node's properties
-    ('roi_center', 'roi_size') so they are saved with the graph.
+    The ROI is fitted to the input once, when it is created.
+    After that it belongs to the user: dragging it in the views re-runs the crop, and its center and size are kept in the node's properties ('roi_center', 'roi_size') so they are saved with the graph.
     """
 
     NODE_NAME     = "Crop Volume"
@@ -50,8 +45,8 @@ class CropVolumeNode(LinkedModuleNode):
             _mark_ephemeral(param)
         param.SetInputVolumeNodeID(vol.GetID())
 
-        # An ROI connected to the input port is used as it is. It belongs
-        # to the upstream node, which keeps and saves its placement.
+        # An ROI connected to the input port is used as it is.
+        # It belongs to the upstream node, which keeps and saves its placement.
         external_roi = inputs.get('roi_in')
         if external_roi is not None:
             if not external_roi.IsA('vtkMRMLMarkupsROINode'):
@@ -97,9 +92,8 @@ class CropVolumeNode(LinkedModuleNode):
 
     def _apply_crop(self, cv_logic, param, vol):
         """Run the crop with the ROI already set on `param`."""
-        # Reuse the cropped-volume node WE own. (_cache may carry an
-        # upstream ref left by passthrough; that is not safe to write
-        # CropVolume output into.)
+        # Reuse the cropped-volume node WE own.
+        # (_cache may carry an upstream ref left by passthrough; that is not safe to write CropVolume output into.)
         out = self._owned_outputs.get('volume_out')
         if out is None or not slicer.mrmlScene.GetNodeByID(out.GetID()):
             out = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode')

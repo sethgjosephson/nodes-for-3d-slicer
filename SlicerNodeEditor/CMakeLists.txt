@@ -24,6 +24,9 @@ set(MODULE_PYTHON_SCRIPTS
   Nodes/viz_nodes.py
   Nodes/layout_node.py
   Nodes/process_nodes.py
+  Nodes/resample_nodes.py
+  Nodes/segment_ops_nodes.py
+  Nodes/diffusion_nodes.py
   )
 
 set(MODULE_PYTHON_RESOURCES

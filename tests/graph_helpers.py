@@ -1,8 +1,7 @@
 """
 Helpers for workflow tests that drive the live Node Editor canvas.
 
-Every helper works on the module's own scene, executor and viewer slots,
-so a test exercises the same path as a person pressing keys on the canvas.
+Every helper works on the module's own scene, executor and viewer slots, so a test exercises the same path as a person pressing keys on the canvas.
 """
 
 import json
@@ -117,8 +116,7 @@ class G:
         return edge
 
     def chain(self, *items):
-        """Connect each item to the next through their first ports that
-        the scene's auto-connect accepts."""
+        """Connect each item to the next through their first ports that the scene's auto-connect accepts."""
         for a, b in zip(items, items[1:]):
             if not self.scene.try_auto_connect(a, b):
                 raise RuntimeError(
@@ -134,8 +132,8 @@ class G:
         slicer.app.processEvents()
 
     def press(self, key, ctrl=False, timeout_s=600):
-        """Send a key press to the canvas, as typed with the cursor over
-        it. `key` is a character such as '1', 'D', 'F' or a qt.Qt.Key."""
+        """Send a key press to the canvas, as typed with the cursor over it.
+        `key` is a character such as '1', 'D', 'F' or a qt.Qt.Key."""
         import qt
         if isinstance(key, str):
             names = {'Del': qt.Qt.Key_Delete, 'Esc': qt.Qt.Key_Escape,

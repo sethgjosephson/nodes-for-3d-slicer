@@ -1,5 +1,4 @@
-# Two timepoints of a brain tumor: register, resample onto one grid,
-# subtract, and carry a label volume across with the same transform.
+# Two timepoints of a brain tumor: register, resample onto one grid, subtract, and carry a label volume across with the same transform.
 import numpy as np
 
 g = G(editor)

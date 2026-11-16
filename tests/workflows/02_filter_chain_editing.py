@@ -1,5 +1,4 @@
-# A filter chain on MRHead, edited the way a person edits it:
-# property changes, disable, delete with splice, undo, copy and paste.
+# A filter chain on MRHead, edited the way a person edits it: property changes, disable, delete with splice, undo, copy and paste.
 g = G(editor)
 g.clear()
 

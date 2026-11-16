@@ -26,7 +26,7 @@ class RegistrationNode(SlicerBaseNode):
          'items': ['Rigid', 'Affine', 'BSpline']},
         {'name': 'sampling', 'label': 'Sampling %', 'type': 'float',
          'default': 0.2, 'min': 0.01, 'max': 1.0},
-        {'name': 'init_mode', 'label': 'Initialisation', 'type': 'enum',
+        {'name': 'init_mode', 'label': 'Initialization', 'type': 'enum',
          'default': 'useGeometryAlign',
          'items': ['useGeometryAlign', 'useCenterOfHeadAlign',
                    'useMomentsAlign', 'Off']},
@@ -42,8 +42,7 @@ class RegistrationNode(SlicerBaseNode):
         sampling  = self.get_property('sampling')
         init_mode = self.get_property('init_mode')
 
-        # Reuse the MRML nodes WE own (passthrough may have written
-        # upstream refs into _cache, so read from _owned_outputs).
+        # Reuse the MRML nodes WE own (passthrough may have written upstream refs into _cache, so read from _owned_outputs).
         xfm = self._owned_outputs.get('transform_out')
         if xfm is None or not slicer.mrmlScene.GetNodeByID(xfm.GetID()):
             xfm = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
@@ -69,9 +68,7 @@ class RegistrationNode(SlicerBaseNode):
             'samplingPercentage':    sampling,
         }
 
-        # Cancel any previous in-flight run (e.g. user re-pressed 1
-        # before the last registration finished) so we don't end up
-        # with two BRAINSFit processes writing to the same nodes.
+        # Cancel any previous in-flight run (e.g. user re-pressed 1 before the last registration finished) so we don't end up with two BRAINSFit processes writing to the same nodes.
         prev_cli = getattr(self, '_async_cli_node', None)
         if prev_cli is not None:
             try:
@@ -79,15 +76,11 @@ class RegistrationNode(SlicerBaseNode):
             except Exception:
                 pass
 
-        # Run async.  BRAINSFit can take minutes; with wait_for_completion
-        # =False the canvas stays interactive.  Output nodes exist now and
-        # are empty / stale until the CLI finishes; downstream observers
-        # added by Phase B.1 will see their ModifiedEvent and mark
-        # downstream nodes dirty automatically when the data arrives.
-        # Slicer places the moving volume under the output transform when
-        # BRAINSFit finishes. That volume belongs to an upstream node and
-        # may feed other branches, so remember where it was and put it
-        # back on completion (see _restore_moving_volume).
+        # Run async.
+        # BRAINSFit can take minutes; with wait_for_completion=False the canvas stays interactive.
+        # Output nodes exist now and are empty or stale until the CLI finishes; downstream observers will see their ModifiedEvent and mark downstream nodes dirty automatically when the data arrives.
+        # Slicer places the moving volume under the output transform when BRAINSFit finishes.
+        # That volume belongs to an upstream node and may feed other branches, so remember where it was and put it back on completion (see _restore_moving_volume).
         self._moving_before = (moving, moving.GetTransformNodeID())
 
         self._async_pending = True
@@ -97,9 +90,7 @@ class RegistrationNode(SlicerBaseNode):
         self._async_cli_node = cli_node
 
         if cli_node is not None:
-            # The CLI node itself is a transient MRML node; keep it out
-            # of .mrb saves and group it with the rest of the graph's
-            # auto-created nodes.
+            # The CLI node itself is a transient MRML node; keep it out of .mrb saves and group it with the rest of the graph's auto-created nodes.
             _mark_ephemeral(cli_node)
             if not hasattr(self, '_cli_nodes'):
                 self._cli_nodes = []
@@ -114,10 +105,7 @@ class RegistrationNode(SlicerBaseNode):
 
     def _on_cli_status_changed(self, cli_node, node_item):
         """Observer fired whenever the BRAINSFit CLI changes status.
-        On terminal statuses, hand off to _notify_async_complete, which
-        marks this node clean, dirties downstream (the executor blocked
-        descendants while we were pending), and re-cooks the active
-        viewer slot."""
+        On terminal statuses, hand off to _notify_async_complete, which marks this node clean, dirties downstream (the executor blocked descendants while we were pending), and re-runs the active viewer slot."""
         try:
             status = cli_node.GetStatus()
         except Exception:
@@ -135,8 +123,7 @@ class RegistrationNode(SlicerBaseNode):
             return
 
         if status == cli_node.Cancelled:
-            # Superseded by a newer run (cancel-on-rerun) or user cancel:
-            # stay dirty, no error badge, just clear the computing dot.
+            # Superseded by a newer run (cancel-on-rerun) or user cancel: stay dirty, no error badge, just clear the computing dot.
             self._async_pending = False
             if node_item is not None:
                 try:
@@ -155,9 +142,8 @@ class RegistrationNode(SlicerBaseNode):
             pass
 
     def _restore_moving_volume(self):
-        """Undo Slicer's re-parenting of the moving volume under the
-        output transform. The transform is this node's output; applying it
-        is the job of an Apply Transform node downstream."""
+        """Undo Slicer's re-parenting of the moving volume under the output transform.
+        The transform is this node's output; applying it is the job of an Apply Transform node downstream."""
         moving, parent_id = getattr(self, '_moving_before', (None, None))
         self._moving_before = (None, None)
         xfm = self._owned_outputs.get('transform_out')
@@ -223,10 +209,8 @@ class ApplyTransformNode(SlicerBaseNode):
         if xfm is None:
             raise ValueError("Apply Transform: no transform connected.")
 
-        # Work on a copy we own. Transforming the upstream volume in
-        # place would leak the transform to every other consumer of that
-        # volume (any branch off the same source), and harden mode would
-        # destructively resample shared data.
+        # Work on a copy we own.
+        # Transforming the upstream volume in place would leak the transform to every other consumer of that volume (any branch off the same source), and harden mode would destructively resample shared data.
         out = self._get_or_create_output('volume_out',
                                          vol.GetName() + '_xformed')
         out.SetName(vol.GetName() + '_xformed')

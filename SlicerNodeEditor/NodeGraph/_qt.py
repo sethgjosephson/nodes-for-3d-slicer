@@ -1,10 +1,8 @@
 """
 Qt shim for the node-graph engine.
 
-Slicer bundles Qt through PythonQt (import qt).  This module re-exports
-every Qt class used by NodeGraph under the same names PySide2/PySide6 would
-provide, plus a pure-Python Signal descriptor so classes can declare
-signals without needing Qt's meta-object system.
+Slicer bundles Qt through PythonQt (import qt).
+This module re-exports every Qt class used by NodeGraph under the same names PySide2/PySide6 would provide, plus a pure-Python Signal descriptor so classes can declare signals without needing Qt's meta-object system.
 """
 
 import qt

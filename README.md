@@ -1,3 +1,5 @@
+<p><img src="brand/nodes-app-icon.svg" alt="Nodes for 3D Slicer" width="96" height="96"></p>
+
 # Nodes for 3D Slicer
 
 A node-graph editor for [3D Slicer](https://slicer.org). Each node wraps a Slicer operation. Edges carry MRML data (volumes, segmentations, transforms, markups, models, tables, diffusion volumes, fiber bundles) between nodes.
@@ -137,7 +139,8 @@ Load these with **Load Graph**, then press **Execute All**.
 | `SlicerNodeEditor/SlicerNodeEditor.py` | Module entry point, toolbar, properties panel, self-tests. |
 | `SlicerNodeEditor/NodeGraph/` | Canvas, scene, executor, viewer routing. |
 | `SlicerNodeEditor/Nodes/` | Node classes. |
-| `docs/design/` | Design notes. |
+| `docs/design/` | Architecture notes. |
+| `brand/` | Logo and icons. |
 | `examples/` | Example graphs. |
 | `tests/` | Workflow tests that run inside Slicer. |
 

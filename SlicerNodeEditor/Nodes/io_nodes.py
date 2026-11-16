@@ -85,8 +85,7 @@ class SampleDataNode(SlicerBaseNode):
 
     def execute(self, inputs):
         import SampleData
-        # Remove EVERY MRML node loaded by the previous sample (some samples
-        # like the prostate set load multiple volumes / segmentations).
+        # Remove EVERY MRML node loaded by the previous sample (some samples like the prostate set load multiple volumes / segmentations).
         _cleanup_loaded_nodes(self)
 
         name   = self.get_property('sample')
@@ -101,9 +100,8 @@ class SampleDataNode(SlicerBaseNode):
         # Track every node that appeared during the download
         self._loaded_node_ids = [nid for nid in after if nid not in before]
 
-        # Mark every loaded node as graph-owned (group under SH folder,
-        # skip .mrb persistence). Multi-file samples can load volumes,
-        # segmentations, transforms, markups; we process them all.
+        # Mark every loaded node as graph-owned (group under SH folder, skip .mrb persistence).
+        # Multi-file samples can load volumes, segmentations, transforms, markups; we process them all.
         for nid in self._loaded_node_ids:
             n = slicer.mrmlScene.GetNodeByID(nid)
             if n is not None:
@@ -124,8 +122,7 @@ class SampleDataNode(SlicerBaseNode):
 class LoadVolumeNode(SlicerBaseNode):
     NODE_NAME    = "Load Volume"
     CATEGORY     = "I/O"
-    # Auto-rerunning while the user is mid-edit on a file path would
-    # constantly try to load invalid partial paths; keep this manual.
+    # Auto-rerunning while the user is mid-edit on a file path would constantly try to load invalid partial paths; keep this manual.
     AUTO_EXECUTE = False
 
     INPUT_PORTS  = []
@@ -174,8 +171,8 @@ class SaveVolumeNode(SlicerBaseNode):
 
 
 class SaveDataNode(SlicerBaseNode):
-    """Writes any input (segmentation, model, table, transform, markup,
-    volume) to a file. The file extension picks the format."""
+    """Writes any input (segmentation, model, table, transform, markup, volume) to a file.
+    The file extension picks the format."""
 
     NODE_NAME    = "Save Data"
     CATEGORY     = "I/O"
@@ -218,9 +215,8 @@ class NewMarkupNode(SlicerBaseNode):
     """
     Creates a markup for the user to place in the views.
 
-    The placement is hand-made state, so it is kept in the node's
-    properties ('points', and 'roi_size' for an ROI) and saved with the
-    graph. Moving a point re-runs whatever is being viewed downstream.
+    The placement is hand-made state, so it is kept in the node's properties ('points', and 'roi_size' for an ROI) and saved with the graph.
+    Moving a point re-runs whatever is being viewed downstream.
     """
 
     NODE_NAME    = "New Markup"
@@ -328,10 +324,8 @@ def _hide_all_volume_renderings():
 
 def _scope_vr_to_volume(target_volume):
     """
-    Make sure VR displays attached to OTHER volumes are hidden, while
-    leaving the VR for `target_volume` (if any exists) visible.  This
-    keeps the volume rendering for the volume we're currently viewing
-    on, and only hides VRs for unrelated samples.
+    Make sure VR displays attached to OTHER volumes are hidden, while leaving the VR for `target_volume` (if any exists) visible.
+    This keeps the volume rendering for the volume we're currently viewing on, and only hides VRs for unrelated samples.
     """
     if target_volume is None:
         return
@@ -350,17 +344,15 @@ def _scope_vr_to_volume(target_volume):
         if dn is None:
             continue
         # Visible iff it belongs to the volume we're currently routing.
-        # (We don't FORCE it visible, only ensure it's hidden when
-        # unrelated.  The user's explicit ON/OFF state for the matching
-        # volume's VR is preserved.)
+        # (We don't FORCE it visible, only ensure it's hidden when unrelated.
+        # The user's explicit ON/OFF state for the matching volume's VR is preserved.)
         if v.GetID() != target_id:
             dn.SetVisibility(False)
 
 
 def _route_volume_to_slices(node):
-    """Show a volume in the conventional 3-slice + 3D layout.  Hides
-    volume renderings for OTHER volumes so only displays related to
-    `node` (its own VR, if any) remain visible."""
+    """Show a volume in the conventional 3-slice + 3D layout.
+    Hides volume renderings for OTHER volumes so only displays related to `node` (its own VR, if any) remain visible."""
     _scope_vr_to_volume(node)
 
     lm = slicer.app.layoutManager()
@@ -376,8 +368,7 @@ def _route_volume_to_slices(node):
 
 def _route_volume_fullscreen(node):
     """Single-pane fullscreen view of a volume on the red slice viewer.
-    Used by `route_fullscreen()` when the user presses F on a node
-    whose output is a scalar volume / labelmap."""
+    Used by `route_fullscreen()` when the user presses F on a node whose output is a scalar volume / labelmap."""
     _scope_vr_to_volume(node)
     lm = slicer.app.layoutManager()
     lm.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutOneUpRedSliceView)
@@ -418,8 +409,8 @@ class MarkupsNode(LinkedModuleNode):
     NODE_NAME     = "Markups"
     CATEGORY      = "I/O"
     LINKED_MODULE = "Markups"
-    # Placements are hand-made state; if upstream data changes they may
-    # no longer sit where the user intended. Show the stale-input badge.
+    # Placements are hand-made state; if upstream data changes they may no longer sit where the user intended.
+    # Show the stale-input badge.
     EDIT_STATE    = True
 
     INPUT_PORTS   = [("markup_in",  "Markup", MARKUP)]

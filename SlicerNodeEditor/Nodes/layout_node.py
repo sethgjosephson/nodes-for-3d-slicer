@@ -1,8 +1,7 @@
 """
 Layout node: routes up to four inputs to Slicer's four views at once.
 
-Pressing 1 or 2 on this node switches Slicer to the Four-Up layout and
-pipes each connected volume to the corresponding slice/3D view.
+Pressing 1 or 2 on this node switches Slicer to the Four-Up layout and pipes each connected volume to the corresponding slice/3D view.
 
 Inputs
 ------
@@ -37,8 +36,7 @@ class LayoutNode(SlicerBaseNode):
                    'Side By Side', '3D Only']},
     ]
 
-    # The layout is this node's own setting: changing it must route the
-    # views again even though the data shown is the same.
+    # The layout is this node's own setting: changing it must route the views again even though the data shown is the same.
     ROUTE_ON_PROPERTY_CHANGE = True
 
     _LAYOUT_MAP = None  # populated lazily at first use

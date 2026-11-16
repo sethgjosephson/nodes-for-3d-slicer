@@ -1,6 +1,5 @@
 """
-Nodes that work on segmentations: clean-up filters, surface models,
-statistics, masking a volume, and label map import.
+Nodes that work on segmentations: clean-up filters, surface models, statistics, masking a volume, and label map import.
 """
 
 import slicer
@@ -20,12 +19,10 @@ def _segment_ids(seg_node):
 
 class _ReferenceGeometry:
     """
-    Context manager giving a volume node whose grid a segmentation's
-    binary labelmaps can be read and written on.
+    Context manager giving a volume node whose grid a segmentation's binary labelmaps can be read and written on.
 
-    Uses the given volume if there is one. Otherwise exports the
-    segmentation to a temporary labelmap on its reference geometry and
-    removes that labelmap on exit.
+    Uses the given volume if there is one.
+    Otherwise exports the segmentation to a temporary labelmap on its reference geometry and removes that labelmap on exit.
     """
 
     def __init__(self, seg_node, volume=None):
@@ -144,8 +141,7 @@ SEGMENT_OPERATIONS = {
 
 
 class SegmentFilterNode(SlicerBaseNode):
-    """Applies one clean-up operation to every segment of a copy of the
-    input segmentation."""
+    """Applies one clean-up operation to every segment of a copy of the input segmentation."""
 
     NODE_NAME    = "Segment Filter"
     CATEGORY     = "Segmentation"
@@ -234,9 +230,7 @@ class SurfaceModelNode(SlicerBaseNode):
             raise ValueError("Surface Model: no segmentation connected.")
         wanted = (self.get_property('segment') or '').strip()
 
-        # Convert on a private copy: the surface settings are this node's,
-        # and writing them into the input would change it for every other
-        # consumer.
+        # Convert on a private copy: the surface settings are this node's, and writing them into the input would change it for every other consumer.
         temp = slicer.mrmlScene.AddNewNodeByClass(
             'vtkMRMLSegmentationNode', '__NodeEditorSurface__')
         temp.SetSaveWithScene(False)

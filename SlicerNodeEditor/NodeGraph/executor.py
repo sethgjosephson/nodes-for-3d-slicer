@@ -1,15 +1,14 @@
 """
 Executor: dirty-flag-aware lazy pipeline executor.
 
-Only nodes that are dirty (and their dirty ancestors) are re-executed
-when a viewer slot is activated.  Clean nodes reuse their cached outputs.
+Only nodes that are dirty (and their dirty ancestors) are re-executed when a viewer slot is activated.
+Clean nodes reuse their cached outputs.
 """
 
 
 class Executor:
     """
-    Walks the scene graph and executes dirty nodes in topological order
-    up to and including a target node.
+    Walks the scene graph and executes dirty nodes in topological order up to and including a target node.
 
     Parameters
     ----------
@@ -27,8 +26,7 @@ class Executor:
 
     def execute_up_to(self, target_node_item):
         """
-        Execute all dirty ancestors of target_node_item, then
-        target_node_item itself if dirty.
+        Execute all dirty ancestors of target_node_item, then target_node_item itself if dirty.
 
         Raises RuntimeError if the graph contains a cycle.
         """
@@ -43,11 +41,8 @@ class Executor:
 
     def _run_in_order(self, order):
         """
-        Run dirty nodes in topological order, isolating failures and
-        in-flight async work: when a node errors or reports an async CLI
-        still running, every descendant is skipped for this pass instead
-        of executing against stale or empty inputs. Async nodes resume
-        the walk from their completion callback via
+        Run dirty nodes in topological order, isolating failures and in-flight async work: when a node errors or reports an async CLI still running, every descendant is skipped for this pass instead of executing against stale or empty inputs.
+        Async nodes resume the walk from their completion callback via
         _notify_async_complete.
         """
         blocked = set()
@@ -116,10 +111,8 @@ class Executor:
     @staticmethod
     def _passthrough(node_data, inputs):
         """
-        For each OUTPUT_PORT, find the first INPUT_PORT with a
-        type-compatible value and forward it through.  Used when a
-        node is disabled (D key): the node becomes a
-        no-op, downstream sees the unprocessed upstream data.
+        For each OUTPUT_PORT, find the first INPUT_PORT with a type-compatible value and forward it through.
+        Used when a node is disabled (D key): the node becomes a no-op, downstream sees the unprocessed upstream data.
         """
         result = {}
         for out_name, _out_label, out_type in node_data.OUTPUT_PORTS:
@@ -138,8 +131,7 @@ class Executor:
         Resolve inputs from upstream caches and call node_data.execute().
 
         Returns 'ok', 'error', or 'pending' (async CLI still running).
-        Only 'ok' marks the node clean; the other two leave it dirty and
-        make _run_in_order block its descendants for this pass.
+        Only 'ok' marks the node clean; the other two leave it dirty and make _run_in_order block its descendants for this pass.
         """
         node_data = node_item.node_data
         inputs    = {}
@@ -154,30 +146,24 @@ class Executor:
             else:
                 inputs[port_name] = None
 
-        # Wire up ModifiedEvent observers on the MRML nodes that ARE
-        # the current inputs.  If any of them gets modified later (by
-        # any source, in-graph or out), our debounced callback marks
-        # this node dirty so the user knows to re-execute.
+        # Wire up ModifiedEvent observers on the MRML nodes that ARE the current inputs.
+        # If any of them gets modified later (by any source, in-graph or out), our debounced callback marks this node dirty so the user knows to re-execute.
         try:
             node_data._refresh_input_observers(node_item)
         except Exception:
             import traceback; traceback.print_exc()
 
-        # Stash the NodeItem so async callbacks (e.g. CLI completion
-        # observers) can find their visual node back.  The reference is
-        # not weak; if the user deletes the node the callback's
-        # node_item.update() is a Qt no-op on a removed item.
+        # Stash the NodeItem so async callbacks (e.g. CLI completion observers) can find their visual node back.
+        # The reference is not weak; if the user deletes the node the callback's node_item.update() is a Qt no-op on a removed item.
         node_data._executing_node_item = node_item
 
-        # Suppress our own observer callbacks for any Modified events
-        # fired as a side-effect of execute() itself.
+        # Suppress our own observer callbacks for any Modified events fired as a side-effect of execute() itself.
         node_data._self_modified = True
         node_data._last_error = None
         passthrough = bool(getattr(node_data, 'is_disabled', False))
         try:
             if passthrough:
-                # Passthrough: skip this node's work, forward
-                # the first type-compatible input to each output.
+                # Passthrough: skip this node's work, forward the first type-compatible input to each output.
                 result = self._passthrough(node_data, inputs)
             else:
                 result = node_data.execute(inputs)
@@ -193,12 +179,9 @@ class Executor:
 
         # _cache is the downstream-facing view (passthrough writes here too).
         node_data._cache.update(result or {})
-        # _owned_outputs records what THIS node actually produced. Passthrough
-        # must not mirror in - that would let upstream MRML refs sneak into
-        # the "reuse my own output" path and cause re-execution to write
-        # into upstream nodes (the bug behind the double-smoothing).
-        # An output that is one of this node's own inputs (a wrapper node
-        # handing its input on) belongs to the upstream node, not to this one.
+        # _owned_outputs records what THIS node actually produced.
+        # Passthrough must not mirror in: that would let upstream MRML refs sneak into the "reuse my own output" path and cause re-execution to write into upstream nodes (the bug behind the double-smoothing).
+        # An output that is one of this node's own inputs (a wrapper node handing its input on) belongs to the upstream node, not to this one.
         if not passthrough:
             input_ids = {v.GetID() for v in inputs.values() if v is not None}
             for port_name, value in (result or {}).items():
@@ -207,9 +190,8 @@ class Executor:
                 else:
                     node_data._owned_outputs[port_name] = value
 
-        # Async CLI still running: outputs are placeholders. Stay dirty,
-        # keep descendants blocked; _notify_async_complete finishes the
-        # job when the CLI lands.
+        # Async CLI still running: outputs are placeholders.
+        # Stay dirty, keep descendants blocked; _notify_async_complete finishes the job when the CLI lands.
         if getattr(node_data, '_async_pending', False):
             node_item.update()
             return 'pending'

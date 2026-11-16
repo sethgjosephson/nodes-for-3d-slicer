@@ -1,6 +1,5 @@
 """
-NodeEditorCanvas: QGraphicsView with pan/zoom, keyboard shortcuts,
-and the Tab search popup.
+NodeEditorCanvas: QGraphicsView with pan/zoom, keyboard shortcuts, and the Tab search popup.
 
 Keyboard shortcuts
 ──────────────────
@@ -42,14 +41,13 @@ def _event_modifiers(event):
 
 class NodeEditorCanvas(QGraphicsView):
     """
-    Main canvas widget.  Embed with  layout.addWidget(canvas).
+    Main canvas widget. Embed with  layout.addWidget(canvas).
 
     Parameters
     ----------
     node_registry : list[SlicerBaseNode subclass]
         All node classes available in the Tab search menu.
-    router : ViewerSlotManager
-    executor : Executor
+    router : ViewerSlotManager executor : Executor
     """
 
     def __init__(self, node_registry, router, executor, parent=None):
@@ -85,10 +83,8 @@ class NodeEditorCanvas(QGraphicsView):
         self._pan_active       = False
         self._pan_origin       = QPoint(0, 0)
 
-        # Auto-rerun on property change: when ANY node's property changes
-        # we re-cook whichever pipeline is currently routed to the active
-        # viewer slot. Debounced via QTimer so sliders don't trigger one
-        # execution per pixel of drag.
+        # Auto-rerun on property change: when ANY node's property changes we re-run whichever pipeline is currently routed to the active viewer slot.
+        # Debounced via QTimer so sliders don't trigger one execution per pixel of drag.
         self._auto_rerun_timer = None
         self._auto_rerun_delay = 300  # ms
         try:
@@ -240,8 +236,7 @@ class NodeEditorCanvas(QGraphicsView):
             return
 
         # --- Frame canvas / Fullscreen selected output ---
-        # F on a selected node routes its output to a single-pane
-        # viewer (3D-only for VR, single slice for volumes, etc).
+        # F on a selected node routes its output to a single-pane viewer (3D-only for VR, single slice for volumes, etc).
         # F with no selection frames the canvas viewport to fit nodes.
         if key == Qt.Key_F:
             sel = self._selected_node()
@@ -330,9 +325,7 @@ class NodeEditorCanvas(QGraphicsView):
         self._delete_with_splice(selected)
 
     def _fullscreen_selected(self, node_item):
-        """Make sure the chain feeding this node is up-to-date, then
-        ask the node to route its output to a single-pane fullscreen
-        layout (3D-only for VR, single slice for volume outputs, etc)."""
+        """Make sure the chain feeding this node is up-to-date, then ask the node to route its output to a single-pane fullscreen layout (3D-only for VR, single slice for volume outputs, etc)."""
         if self._executor is not None:
             try:
                 self._executor.execute_up_to(node_item)
@@ -350,9 +343,8 @@ class NodeEditorCanvas(QGraphicsView):
 
     def _toggle_disable_selected(self):
         """Toggle the 'disabled' flag on every selected node.
-        Disabled nodes skip their own work and passthrough the first
-        type-compatible input to each output, so downstream sees the
-        unprocessed upstream data. Useful for quick A/B comparisons."""
+        Disabled nodes skip their own work and passthrough the first type-compatible input to each output, so downstream sees the unprocessed upstream data.
+        Useful for quick A/B comparisons."""
         selected = self._scene.selected_node_items()
         if not selected:
             return
@@ -360,18 +352,15 @@ class NodeEditorCanvas(QGraphicsView):
         for ni in selected:
             ni.node_data.is_disabled = not getattr(
                 ni.node_data, 'is_disabled', False)
-            # Disabling/enabling changes the node's output, so mark
-            # downstream dirty and the node itself dirty.
+            # Disabling/enabling changes the node's output, so mark downstream dirty and the node itself dirty.
             ni.node_data.is_dirty = True
             ni.update()
             self._scene.mark_dirty_from(ni)
-        # Schedule the auto-rerun so the currently-viewed pipeline
-        # reflects the new on/off state right away.
+        # Schedule the auto-rerun so the currently-viewed pipeline reflects the new on/off state right away.
         self._schedule_auto_rerun()
 
     def _delete_with_splice(self, items):
-        """Delete each item; if it sits in a pipe, splice the pipe back
-        together (upstream port → downstream port directly)."""
+        """Delete each item; if it sits in a pipe, splice the pipe back together (upstream port → downstream port directly)."""
         sel_set = {id(ni) for ni in items}
         for ni in items:
             plan = self._scene.build_splice_out_plan(ni)
@@ -452,8 +441,8 @@ class NodeEditorCanvas(QGraphicsView):
     # ------------------------------------------------------------------
 
     def _on_property_changed(self, node_item):
-        """Scene tells us a node's property was edited. Debounce-schedule
-        a re-cook of the active viewer slot's pipeline."""
+        """Scene tells us a node's property was edited.
+        Debounce-schedule a re-run of the active viewer slot's pipeline."""
         self._schedule_auto_rerun()
 
     def _schedule_auto_rerun(self):
@@ -466,8 +455,7 @@ class NodeEditorCanvas(QGraphicsView):
         self._auto_rerun_timer.start(self._auto_rerun_delay)
 
     def _do_auto_rerun(self):
-        """Re-execute the active viewer slot's pipeline IF every dirty
-        ancestor allows it (AUTO_EXECUTE is True and not async-pending)."""
+        """Re-execute the active viewer slot's pipeline IF every dirty ancestor allows it (AUTO_EXECUTE is True and not async-pending)."""
         if self._router is None:
             return
         slot = self._router._active
@@ -482,9 +470,7 @@ class NodeEditorCanvas(QGraphicsView):
             import traceback; traceback.print_exc()
 
     def _can_auto_run(self, target_node_item):
-        """Walk dirty ancestors of `target`; return False if any node in
-        the chain has opted out of auto-execution (AUTO_EXECUTE=False)
-        or is currently async-pending."""
+        """Walk dirty ancestors of `target`; return False if any node in the chain has opted out of auto-execution (AUTO_EXECUTE=False) or is currently async-pending."""
         if self._executor is None:
             return False
         try:

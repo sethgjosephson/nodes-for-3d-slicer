@@ -1,9 +1,8 @@
 """
 PortItem: QGraphicsObject representing a single input or output port.
 
-Ports live as child items of NodeItem and are positioned on its top edge
-(inputs) or bottom edge (outputs).  Dragging from a port begins edge
-creation; releasing on a compatible port finalises the connection.
+Ports live as child items of NodeItem and are positioned on its top edge (inputs) or bottom edge (outputs).
+Dragging from a port begins edge creation; releasing on a compatible port finalises the connection.
 """
 
 from ._qt import (QGraphicsObject, QGraphicsTextItem, QRectF, QPointF, Qt, Signal,
@@ -107,7 +106,7 @@ class PortItem(QGraphicsObject):
             self._label_item.setPos(-offset - tw, -th / 2)
 
     def scene_center(self):
-        """Return this port's centre in scene coordinates."""
+        """Return this port's center in scene coordinates."""
         return self.mapToScene(QPointF(0, 0))
 
     @property

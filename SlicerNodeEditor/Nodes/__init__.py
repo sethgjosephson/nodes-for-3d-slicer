@@ -65,9 +65,9 @@ ALL_NODE_CLASSES = [
     LayoutNode,
 ]
 
-# Stable type-id → class map used by graph (de)serialisation. The id is
-# NODE_TYPE if a class sets it, else the class name. If a class is ever
-# renamed, set NODE_TYPE to the old name so saved graphs keep loading.
+# Stable type-id → class map used by graph (de)serialization.
+# The id is NODE_TYPE if a class sets it, else the class name.
+# If a class is ever renamed, set NODE_TYPE to the old name so saved graphs keep loading.
 NODE_TYPE_REGISTRY = {
     (c.NODE_TYPE or c.__name__): c for c in ALL_NODE_CLASSES
 }

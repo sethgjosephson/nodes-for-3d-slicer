@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# Runs one workflow test inside Slicer: tests/run.sh tests/workflows/NAME.py
-# Logs and screenshots go to tests/out/NAME/.
+# Runs one workflow test inside Slicer: tests/run.sh tests/workflows/NAME.py Logs and screenshots go to tests/out/NAME/.
 # SLICER can point at a different Slicer.exe.
 # A test that needs installed extensions names them on a line of its own:
 #   # extensions: SlicerDMRI UKFTractography
-# Slicer's testing mode does not load installed extensions, so their module
-# folders are passed in as additional module paths.
+# Slicer's testing mode does not load installed extensions, so their module folders are passed in as additional module paths.
 set -u
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(dirname "$here")"

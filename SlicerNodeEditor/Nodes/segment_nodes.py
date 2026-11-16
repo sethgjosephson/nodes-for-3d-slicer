@@ -8,8 +8,7 @@ from .base_node import (SlicerBaseNode, LinkedModuleNode,
 class SegmentationNode(SlicerBaseNode):
     NODE_NAME    = "Segmentation"
     CATEGORY     = "Segmentation"
-    # Segmentation effects (especially via Segment Editor) are interactive
-    # and not safe to re-fire on every slider tick.
+    # Segmentation effects (especially via Segment Editor) are interactive and not safe to re-fire on every slider tick.
     AUTO_EXECUTE = False
 
     INPUT_PORTS  = [("volume_in", "Volume", VOLUME)]
@@ -34,8 +33,7 @@ class SegmentationNode(SlicerBaseNode):
         lower  = self.get_property('lower')
         upper  = self.get_property('upper')
 
-        # Reuse the segmentation WE own (not whatever _cache currently
-        # holds; that may be an upstream ref left by passthrough).
+        # Reuse the segmentation WE own (not whatever _cache currently holds; that may be an upstream ref left by passthrough).
         seg = self._owned_outputs.get('seg_out')
         if seg is None or not slicer.mrmlScene.GetNodeByID(seg.GetID()):
             seg = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
@@ -49,9 +47,8 @@ class SegmentationNode(SlicerBaseNode):
             seg.GetSegmentation().AddEmptySegment('Segment_1')
 
         if method in ('Threshold', 'Otsu'):
-            # Write the mask straight into the segment. Driving a Segment
-            # Editor widget for this leaves its threshold effect observing
-            # the slice views after the widget is dropped.
+            # Write the mask straight into the segment.
+            # Driving a Segment Editor widget for this leaves its threshold effect observing the slice views after the widget is dropped.
             seg.SetReferenceImageGeometryParameterFromVolumeNode(volume_node)
             voxels = slicer.util.arrayFromVolume(volume_node)
             if method == 'Otsu':
@@ -59,8 +56,7 @@ class SegmentationNode(SlicerBaseNode):
                 import sitkUtils
                 otsu = sitk.OtsuThresholdImageFilter()
                 otsu.Execute(sitkUtils.PullVolumeFromSlicer(volume_node))
-                # Same convention as the Segment Editor's automatic
-                # threshold: from the Otsu value up to the maximum.
+                # Same convention as the Segment Editor's automatic threshold: from the Otsu value up to the maximum.
                 mask = voxels >= otsu.GetThreshold()
             else:
                 mask = (voxels >= lower) & (voxels <= upper)
@@ -93,12 +89,10 @@ class SegmentationNode(SlicerBaseNode):
 # ---------------------------------------------------------------------------
 
 class SegmentEditorNode(LinkedModuleNode):
-    # Paint-mode editing is the canonical operation here; auto-rerunning
-    # would clobber the user's in-progress strokes.
+    # Paint-mode editing is the canonical operation here; auto-rerunning would clobber the user's in-progress strokes.
     AUTO_EXECUTE = False
-    # Strokes cannot be recomputed from upstream. When an upstream input
-    # changes, show the amber stale-input badge: the hand-edited
-    # segmentation may no longer align with its source volume.
+    # Strokes cannot be recomputed from upstream.
+    # When an upstream input changes, show the amber stale-input badge: the hand-edited segmentation may no longer align with its source volume.
     EDIT_STATE   = True
     """
     Interactive segmentation via Slicer's Segment Editor module.
@@ -124,9 +118,8 @@ class SegmentEditorNode(LinkedModuleNode):
     }
 
     def configure_module_widget(self, module_widget, node_item):
-        """Point the Segment Editor at this node's segmentation and
-        volume. The module is scripted: the editor widget that has the
-        setters hangs off the module widget's Python object."""
+        """Point the Segment Editor at this node's segmentation and volume.
+        The module is scripted: the editor widget that has the setters hangs off the module widget's Python object."""
         try:
             editor = module_widget.self().editor
         except Exception as exc:
@@ -141,8 +134,7 @@ class SegmentEditorNode(LinkedModuleNode):
             editor.setSourceVolumeNode(vol)
 
     def execute(self, inputs):
-        # If no segmentation is fed in, create a fresh one bound to the
-        # volume so the user has something to edit immediately.
+        # If no segmentation is fed in, create a fresh one bound to the volume so the user has something to edit immediately.
         seg = inputs.get('seg_in') or self._owned_outputs.get('seg_out')
         if seg is None or not slicer.mrmlScene.GetNodeByID(seg.GetID()):
             vol = inputs.get('volume_in')

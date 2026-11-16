@@ -15,11 +15,8 @@ class ThresholdNode(SlicerBaseNode):
     OUTPUT_PORTS = [("volume_out", "Volume", VOLUME)]
 
     PROPERTIES = [
-        # 'Keep values' preserves original intensities inside the range
-        # (outside becomes the outside value), so the result still renders
-        # like anatomy in 3D. 'Binary mask' outputs 0/1 for mask-style
-        # downstream steps; note a 0/1 volume is nearly invisible in
-        # volume rendering because opacity ramps span the source range.
+        # 'Keep values' preserves original intensities inside the range (outside becomes the outside value), so the result still renders like anatomy in 3D.
+        # 'Binary mask' outputs 0/1 for mask-style downstream steps; note a 0/1 volume is nearly invisible in volume rendering because opacity ramps span the source range.
         {'name': 'mode', 'label': 'Mode', 'type': 'enum',
          'default': 'Keep values',
          'items': ['Keep values', 'Binary mask']},
@@ -27,7 +24,7 @@ class ThresholdNode(SlicerBaseNode):
          'default': 100.0, 'min': -2000.0, 'max': 5000.0},
         {'name': 'upper', 'label': 'Upper',  'type': 'float',
          'default': 500.0, 'min': -2000.0, 'max': 5000.0},
-        # outside is a uint8_t in SimpleITK.BinaryThreshold (0-255).
+        # Outside is a uint8_t in SimpleITK.BinaryThreshold (0-255).
         {'name': 'outside', 'label': 'Outside Value', 'type': 'int',
          'default': 0, 'min': 0, 'max': 255},
         {'name': 'inside',  'label': 'Inside Value (mask only)', 'type': 'int',
@@ -42,8 +39,7 @@ class ThresholdNode(SlicerBaseNode):
         mode    = self.get_property('mode') or 'Keep values'
         lower   = float(self.get_property('lower'))
         upper   = float(self.get_property('upper'))
-        # SimpleITK requires inside/outside to be uint8_t; cast defensively
-        # so older saved graphs with float values keep working.
+        # SimpleITK requires inside/outside to be uint8_t; cast defensively so older saved graphs with float values keep working.
         outside = int(self.get_property('outside'))
         inside  = int(self.get_property('inside'))
 

@@ -1,10 +1,8 @@
 """
-Diffusion MRI nodes: diffusion-weighted volume in, tensor, scalar maps,
-tractography and fiber measurements out.
+Diffusion MRI nodes: diffusion-weighted volume in, tensor, scalar maps, tractography and fiber measurements out.
 
-Every node here runs a module of the SlicerDMRI extension. Without the
-extension the nodes still load, so a saved graph keeps its shape; they
-raise a clear error when run.
+Every node here runs a module of the SlicerDMRI extension.
+Without the extension the nodes still load, so a saved graph keeps its shape; they raise a clear error when run.
 """
 
 import os
@@ -30,11 +28,10 @@ def _dmri_module(name):
 
 
 def _run_cli(module, params, what):
-    """Run a CLI module and wait for it. Raises with the module's own
-    error text if it does not complete."""
-    # Slicer shows a module's output volumes in the slice views when the
-    # module finishes. What the views show is the viewed node's decision,
-    # so put the slice layers back as they were.
+    """Run a CLI module and wait for it.
+    Raises with the module's own error text if it does not complete."""
+    # Slicer shows a module's output volumes in the slice views when the module finishes.
+    # What the views show is the viewed node's decision, so put the slice layers back as they were.
     layers = _slice_layers()
     cli = slicer.cli.runSync(module, None, params)
     _restore_slice_layers(layers)
@@ -82,8 +79,8 @@ def _owned(node, port_name, mrml_class, name):
 
 
 def _finish_outputs(*mrml_nodes):
-    """CLI modules add display and storage nodes to their outputs when
-    they load the result. Mark those as graph data too."""
+    """CLI modules add display and storage nodes to their outputs when they load the result.
+    Mark those as graph data too."""
     for mrml_node in mrml_nodes:
         if mrml_node is not None:
             _mark_ephemeral(mrml_node)
@@ -243,8 +240,7 @@ class _LabelMap:
     Context manager handing a CLI module a label map.
 
     The diffusion modules take masks and seed regions as label map nodes.
-    A mask from a filter node is a plain scalar volume, so it is copied
-    into a temporary label map for the run.
+    A mask from a filter node is a plain scalar volume, so it is copied into a temporary label map for the run.
     """
 
     def __init__(self, volume):
@@ -431,8 +427,7 @@ class TractographyDisplayNode(LinkedModuleNode):
 # ---------------------------------------------------------------------------
 
 class FiberMeasurementsNode(SlicerBaseNode):
-    """Measures a fiber bundle (count, length, FA and other tensor
-    scalars along the fibers) into a table."""
+    """Measures a fiber bundle (count, length, FA and other tensor scalars along the fibers) into a table."""
 
     NODE_NAME    = "Fiber Measurements"
     CATEGORY     = "Measure"

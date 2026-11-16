@@ -16,8 +16,7 @@ INTERPOLATORS = {
 
 class ResampleVolumeNode(SlicerBaseNode):
     """
-    Resamples a volume onto the grid of a reference volume, optionally
-    moving it by a transform first.
+    Resamples a volume onto the grid of a reference volume, optionally moving it by a transform first.
 
     Use Nearest Neighbor for label volumes so label values are not blended.
     """
@@ -52,8 +51,8 @@ class ResampleVolumeNode(SlicerBaseNode):
             raise ValueError("Resample Volume: unknown interpolation "
                              f"'{self.get_property('interpolation')}'.")
 
-        # Move a private copy by the transform, then read it back in its
-        # new position. The input volume is left where it is.
+        # Move a private copy by the transform, then read it back in its new position.
+        # The input volume is left where it is.
         moved = volume
         temp = None
         if transform is not None:
@@ -108,8 +107,8 @@ MATH_OPERATIONS = {
 
 
 class VolumeMathNode(SlicerBaseNode):
-    """Combines two volumes voxel by voxel. Both must be on the same grid;
-    put a Resample Volume node in front of one of them if they are not."""
+    """Combines two volumes voxel by voxel.
+    Both must be on the same grid; put a Resample Volume node in front of one of them if they are not."""
 
     NODE_NAME    = "Volume Math"
     CATEGORY     = "Filters"
@@ -138,9 +137,8 @@ class VolumeMathNode(SlicerBaseNode):
             raise ValueError(
                 f"Volume Math: A is {a.GetSize()} voxels and B is "
                 f"{b.GetSize()}. Resample one onto the other first.")
-        # Same voxel counts: treat B as being on A's grid. Small
-        # differences in origin or spacing metadata would otherwise make
-        # SimpleITK refuse the pair.
+        # Same voxel counts: treat B as being on A's grid.
+        # Small differences in origin or spacing metadata would otherwise make SimpleITK refuse the pair.
         b.CopyInformation(a)
         result = operation(a, b)
 

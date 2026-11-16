@@ -1,9 +1,8 @@
 """
 SlicerNodeEditor: node-graph editor for 3D Slicer.
 
-Module entry point.  The widget embeds the NodeEditorCanvas
-(QGraphicsView) and a collapsible properties panel that shows the
-selected node's parameters.
+Module entry point.
+The widget embeds the NodeEditorCanvas (QGraphicsView) and a collapsible properties panel that shows the selected node's parameters.
 """
 
 import os
@@ -32,7 +31,7 @@ class SlicerNodeEditor(ScriptedLoadableModule):
         parent.title        = "Node Editor"
         parent.categories   = ["Utilities"]
         parent.dependencies = []
-        parent.contributors = ["Seth Rivers"]
+        parent.contributors = ["Seth Josephson"]
         parent.helpText = (
             "A node-graph editor for 3D Slicer. Each node wraps a Slicer "
             "operation; edges carry MRML data between nodes.\n\n"
@@ -55,11 +54,8 @@ class SlicerNodeEditor(ScriptedLoadableModule):
 
 class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
-    # Attribute stamped on the vtkMRMLScriptedModuleNode that carries the
-    # serialised graph.  We tag + scan by this rather than relying on
-    # getParameterNode()'s singleton, because a singleton node already
-    # present in the session shadows (discards) the imported one during
-    # an .mrb load, so the embedded graph would never arrive.
+    # Attribute stamped on the vtkMRMLScriptedModuleNode that carries the serialized graph.
+    # We tag + scan by this rather than relying on getParameterNode()'s singleton, because a singleton node already present in the session shadows (discards) the imported one during an .mrb load, so the embedded graph would never arrive.
     GRAPH_NODE_ATTR = 'NodeEditorGraph'
 
     def __init__(self, parent=None):
@@ -70,7 +66,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._props_widget    = None
         self._selected_node   = None
         self._startup_btn     = None
-        # Phase D: .mrb-embedded graph sync
+        # The graph saved inside .mrb files
         self._parameter_node  = None    # tagged vtkMRMLScriptedModuleNode carrier
         self._loading_graph   = False   # suppress mutation listener during deserialise
         self._sync_timer      = None    # debounced mutation -> parameter node write
@@ -97,8 +93,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             "Load a canned test workflow (three pipelines exercising filters, "
             "linked modules, and multi-VR visibility scoping).")
 
-        # Checkable "Default" button: when on, Slicer opens to Node Editor
-        # at next launch (writes "Modules/HomeModule" in QSettings).
+        # Checkable "Default" button: when on, Slicer opens to Node Editor at next launch (writes "Modules/HomeModule" in QSettings).
         startup_btn = qt.QPushButton("Default on Launch")
         startup_btn.setCheckable(True)
         startup_btn.setToolTip(
@@ -163,26 +158,20 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         demo_btn.connect("clicked()",  self._on_load_demo)
         startup_btn.connect("toggled(bool)", self._on_toggle_default_startup)
 
-        # When the user closes the scene (or opens a different .mrb),
-        # drop every node's cached MRML pointers and mark all nodes
-        # dirty. The graph itself (nodes / edges / positions / props /
-        # undo / clipboard / slots) is a recipe and survives untouched.
-        # Pressing 1 in the new scene will re-cook the data.
-        # StartCloseEvent fires BEFORE nodes are deleted, which is the
-        # right moment to drop references.
+        # When the user closes the scene (or opens a different .mrb), drop every node's cached MRML pointers and mark all nodes dirty.
+        # The graph itself (nodes / edges / positions / props / undo / clipboard / slots) is a recipe and survives untouched.
+        # Pressing 1 in the new scene recomputes the data.
+        # StartCloseEvent fires BEFORE nodes are deleted, which is the right moment to drop references.
         self.addObserver(slicer.mrmlScene,
                          slicer.vtkMRMLScene.StartCloseEvent,
                          self._on_scene_close)
 
-        # Phase D: when a .mrb finishes loading AFTER a close (i.e. the
-        # user did Open Scene rather than Add Data), look for our
-        # parameter node and rebuild the canvas from its graph_json.
+        # When a .mrb finishes loading after a close (i.e. the user did Open Scene rather than Add Data), look for our parameter node and rebuild the canvas from its graph_json.
         self.addObserver(slicer.mrmlScene,
                          slicer.vtkMRMLScene.EndImportEvent,
                          self._on_scene_imported)
 
-        # Phase D: sync the graph into a vtkMRMLScriptedModuleNode
-        # singleton whenever the graph mutates, so .mrb saves carry it.
+        # Sync the graph into a vtkMRMLScriptedModuleNode singleton whenever the graph mutates, so .mrb saves carry it.
         self._canvas.node_scene.set_mutation_listener(self._on_graph_mutated)
 
     # ------------------------------------------------------------------
@@ -192,16 +181,14 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def _on_node_selected(self, node_item):
         self._selected_node = node_item
 
-        # If the node is linked to a Slicer module, swap the left panel
-        # to that module's own widget instead of building our inline form.
+        # If the node is linked to a Slicer module, swap the left panel to that module's own widget instead of building our inline form.
         linked = (getattr(node_item.node_data, 'LINKED_MODULE', None)
                   if node_item is not None else None)
         if linked:
             self._show_linked_module(node_item, linked)
             return
 
-        # Otherwise: ensure we're on the Node Editor module and rebuild
-        # the inline properties panel.
+        # Otherwise: ensure we're on the Node Editor module and rebuild the inline properties panel.
         self._ensure_node_editor_active()
         self._rebuild_props_panel(node_item)
 
@@ -309,8 +296,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 hl.addWidget(w)
                 browse = qt.QPushButton("…")
                 browse.setMaximumWidth(28)
-                # A path the node writes to needs a save dialog, which
-                # accepts a file that does not exist yet.
+                # A path the node writes to needs a save dialog, which accepts a file that does not exist yet.
                 saving = 'output' in prop['label'].lower()
                 def _browse(line_edit=w, saving=saving):
                     if saving:
@@ -407,8 +393,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     "Node Editor will be the startup module next launch.",
                     3000)
             else:
-                # Clear our specific value rather than wiping the key
-                # entirely (Slicer falls back to its default if empty).
+                # Clear our specific value rather than wiping the key entirely (Slicer falls back to its default if empty).
                 settings.remove(self._STARTUP_SETTING_KEY)
                 slicer.util.showStatusMessage(
                     "Startup module reverted to Slicer default.", 3000)
@@ -420,8 +405,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self._startup_btn.setChecked(self._is_default_startup_module())
 
     def _on_load_demo(self):
-        """Load the bundled demo workflow so we have a known-good test
-        layout one click away after a reload."""
+        """Load the bundled demo workflow so we have a known-good test layout one click away after a reload."""
         demo_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             'Resources', 'demo_workflow.json')
@@ -446,21 +430,18 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def _on_clear(self):
         """Toolbar Clear button: user-initiated, wipe everything."""
         self._clear_graph()
-        # An empty graph IS a meaningful state; sync it so the .mrb
-        # doesn't keep a stale serialised graph from before the clear.
+        # An empty graph IS a meaningful state; sync it so the .mrb doesn't keep a stale serialized graph from before the clear.
         if self._canvas is not None and self._canvas.node_scene is not None:
             self._canvas.node_scene.notify_mutation()
 
     # ------------------------------------------------------------------
-    # Phase D: graph travels in .mrb via a vtkMRMLScriptedModuleNode
-    # singleton.  The standalone Save / Load Graph JSON buttons remain
-    # the canonical persistence path; this side channel is so scene +
-    # graph travel together when the user shares an .mrb file.
+    # The graph travels in .mrb files via a vtkMRMLScriptedModuleNode singleton.
+    # The standalone Save / Load Graph JSON buttons remain the canonical persistence path; this side channel is so scene + graph travel together when the user shares an .mrb file.
     # ------------------------------------------------------------------
 
     def _find_graph_nodes(self):
-        """Every vtkMRMLScriptedModuleNode in the scene that we tagged as
-        a graph carrier.  Returns a plain Python list (possibly empty)."""
+        """Every vtkMRMLScriptedModuleNode in the scene that we tagged as a graph carrier.
+        Returns a plain Python list (possibly empty)."""
         found = []
         try:
             for n in slicer.util.getNodesByClass('vtkMRMLScriptedModuleNode'):
@@ -474,10 +455,9 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         return found
 
     def _get_or_create_parameter_node(self):
-        """Return the (single) graph-carrier node, creating it on first
-        use.  NOT a singleton: we find it by our own attribute tag so an
-        imported .mrb's carrier is never shadowed.  SaveWithScene(True)
-        so it travels inside the .mrb."""
+        """Return the (single) graph-carrier node, creating it on first use.
+        NOT a singleton: we find it by our own attribute tag so an imported .mrb's carrier is never shadowed.
+        SaveWithScene(True) so it travels inside the .mrb."""
         if (self._parameter_node is not None
                 and slicer.mrmlScene.GetNodeByID(self._parameter_node.GetID()) is not None):
             return self._parameter_node
@@ -499,9 +479,8 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         return self._parameter_node
 
     def _consolidate_graph_nodes(self, graph_nodes, keep):
-        """After an import there may be two carriers (the session's own
-        plus the imported one).  Keep exactly one and drop the rest so
-        they don't accumulate across repeated loads."""
+        """After an import there may be two carriers (the session's own plus the imported one).
+        Keep exactly one and drop the rest so they don't accumulate across repeated loads."""
         if keep is None:
             keep = graph_nodes[0] if graph_nodes else None
         self._parameter_node = keep
@@ -514,8 +493,8 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 pass
 
     def _on_graph_mutated(self):
-        """Scene fired its mutation listener.  Debounce-schedule a
-        write of the current serialised graph into the parameter node."""
+        """Scene fired its mutation listener.
+        Debounce-schedule a write of the current serialized graph into the parameter node."""
         if self._loading_graph:
             return
         if self._sync_timer is None:
@@ -525,8 +504,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._sync_timer.start(200)
 
     def _do_sync_to_parameter_node(self):
-        """Serialise the canvas graph into the parameter node's
-        graph_json field."""
+        """Serialize the canvas graph into the parameter node's graph_json field."""
         if self._canvas is None or self._canvas.node_scene is None:
             return
         pn = self._get_or_create_parameter_node()
@@ -543,14 +521,12 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             print(f"[NodeEditor] writing graph_json failed: {exc}")
 
     def _on_scene_imported(self, caller=None, event=None):
-        """EndImportEvent. Fires after any scene import (Add Data with an
-        .mrb is the common case; modern Slicer has no separate Open Scene
-        that does close-then-import).
+        """EndImportEvent.
+        Fires after any scene import (Add Data with an .mrb is the common case; Slicer has no separate Open Scene that does close-then-import).
 
         Strategy: scan the scene for our tagged graph-carrier node(s).
-        If one carries a graph_json that differs from the current canvas,
-        rebuild the canvas from it.  Then collapse any duplicate carriers
-        down to one.
+        If one carries a graph_json that differs from the current canvas, rebuild the canvas from it.
+        Then collapse any duplicate carriers down to one.
 
         - Cancel (do NOT flush) any pending canvas->carrier write: a
           flush here would overwrite the freshly imported graph_json with
@@ -561,8 +537,8 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self._loading_graph:
             return
 
-        # Cancel any pending mutation -> carrier write so it can't clobber
-        # the just-imported payload.  No flush.
+        # Cancel any pending mutation -> carrier write so it can't clobber the just-imported payload.
+        # No flush.
         if self._sync_timer is not None and self._sync_timer.isActive():
             try:
                 self._sync_timer.stop()
@@ -585,8 +561,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         except Exception:
             current = ''
 
-        # Pick a carrier whose payload is non-empty AND differs from the
-        # canvas: that's the imported workflow we want to restore.
+        # Pick a carrier whose payload is non-empty AND differs from the canvas: that's the imported workflow we want to restore.
         payload = None
         source_node = None
         for n in graph_nodes:
@@ -601,8 +576,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             except Exception:
                 continue
             if norm == current:
-                # Canvas already shows this graph; nothing to restore from
-                # it, but remember it as the carrier to keep.
+                # Canvas already shows this graph; nothing to restore from it, but remember it as the carrier to keep.
                 if source_node is None:
                     source_node = n
                 continue
@@ -665,19 +639,16 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def _on_scene_close(self, caller=None, event=None):
         """
-        The MRML scene is being wiped (File > Close Scene).  Treat this
-        as "start a fresh workflow": clear the canvas entirely.
+        The MRML scene is being wiped (File > Close Scene).
+        Treat this as "start a fresh workflow": clear the canvas entirely.
 
-        A graph belongs to the scene it was built in and travels inside
-        that scene's .mrb (Phase D embeds the serialised graph in a
-        SaveWithScene scripted-module node).  So Close Scene == blank
-        slate; re-open the .mrb to bring its graph back.
+        A graph belongs to the scene it was built in and travels inside that scene's .mrb (the serialized graph is embedded in a SaveWithScene scripted-module node).
+        So Close Scene == blank slate; re-open the .mrb to bring its graph back.
         """
         # Drop the carrier ref: it's about to be deleted by the close.
         self._parameter_node = None
 
-        # Cancel any pending canvas->carrier write; the canvas is about
-        # to be emptied and we don't want a stale sync firing afterward.
+        # Cancel any pending canvas->carrier write; the canvas is about to be emptied and we don't want a stale sync firing afterward.
         if self._sync_timer is not None and self._sync_timer.isActive():
             try:
                 self._sync_timer.stop()
@@ -690,12 +661,10 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if scene is None:
             return
 
-        # Suppress the mutation listener while we tear down so node
-        # removals don't schedule a sync into the dying scene.
+        # Suppress the mutation listener while we tear down so node removals don't schedule a sync into the dying scene.
         self._loading_graph = True
         try:
-            # Drop input MRML observers BEFORE the underlying nodes get
-            # deleted, so we don't RemoveObserver on dead pointers later.
+            # Drop input MRML observers BEFORE the underlying nodes get deleted, so we don't RemoveObserver on dead pointers later.
             for ni in scene.all_node_items():
                 try:
                     ni.node_data._clear_input_observers()
@@ -709,9 +678,8 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self._loading_graph = False
 
     def _clear_graph(self, release=True):
-        """Tear down every node, reset router slots, clear undo / redo /
-        clipboard, and blank the properties panel.  Used by the Clear
-        toolbar button, the explicit "throw it all away" action.
+        """Tear down every node, reset router slots, clear undo / redo / clipboard, and blank the properties panel.
+        Used by the Clear toolbar button, the explicit "throw it all away" action.
         With `release`, the MRML nodes the graph created are removed."""
         scene = self._canvas.node_scene if self._canvas is not None else None
         if scene is None:
@@ -745,8 +713,7 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # ------------------------------------------------------------------
 
     def enter(self):
-        # Bring the canvas dock to the front when the user is on this module,
-        # but never hide it; the canvas is meant to be persistent across modules.
+        # Bring the canvas dock to the front when the user is on this module, but never hide it; the canvas is meant to be persistent across modules.
         if self._dock is not None:
             self._dock.show()
             self._dock.raise_()
@@ -768,11 +735,8 @@ class SlicerNodeEditorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onReload(self):
         """Reload this module AND its subpackages.
 
-        Slicer's stock reload only re-imports SlicerNodeEditor.py; the
-        NodeGraph/ and Nodes/ packages would stay stale in sys.modules
-        until a full Slicer restart, so code changes there would
-        silently not take effect (and reloaded tests would run against
-        old classes). Purge them first so the re-import is complete.
+        Slicer's stock reload only re-imports SlicerNodeEditor.py; the NodeGraph/ and Nodes/ packages would stay stale in sys.modules until a full Slicer restart, so code changes there would silently not take effect (and reloaded tests would run against old classes).
+        Purge them first so the re-import is complete.
         """
         import sys
         for name in list(sys.modules):
@@ -843,15 +807,12 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
         self.delayDisplay("Edge connection OK")
 
     # ------------------------------------------------------------------
-    # Test helpers: a source node backed by a synthetic in-memory volume
-    # (no downloads, no file paths) and a source that always fails.
+    # Test helpers: a source node backed by a synthetic in-memory volume (no downloads, no file paths) and a source that always fails.
     # ------------------------------------------------------------------
 
     @staticmethod
     def _make_synthetic_source():
-        """Return a SlicerBaseNode subclass whose output is a small
-        synthetic volume: a 10x10x10 zero volume with a 4x4x4 block of
-        voxels at value 200."""
+        """Return a SlicerBaseNode subclass whose output is a small synthetic volume: a 10x10x10 zero volume with a 4x4x4 block of voxels at value 200."""
         import numpy as np
         from Nodes.base_node import SlicerBaseNode, VOLUME
 
@@ -871,11 +832,10 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
     @staticmethod
     def _dispose_graph_scene(scene, extra_mrml_nodes=()):
         """
-        Tear down a test graph scene. Removing each canvas node clears
-        its MRML observers, so no debounced callback can later fire
-        against deleted Qt items (dangling PythonQt wrappers can
-        hard-crash Slicer, not just raise). Also removes any MRML nodes
-        the test created. Safe to call after a failed assertion.
+        Tear down a test graph scene.
+        Removing each canvas node clears its MRML observers, so no debounced callback can later fire against deleted Qt items (dangling PythonQt wrappers can hard-crash Slicer, not just raise).
+        Also removes any MRML nodes the test created.
+        Safe to call after a failed assertion.
         """
         try:
             for ni in list(scene.all_node_items()):
@@ -912,8 +872,7 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
             out = thresh.node_data.get_cached_output('volume_out')
             self.assertIsNotNone(out)
             self.assertFalse(thresh.node_data.is_dirty)
-            # Default mode is 'Keep values': the 200-valued block keeps
-            # its intensity, everything else becomes 0.
+            # Default mode is 'Keep values': the 200-valued block keeps its intensity, everything else becomes 0.
             result = slicer.util.arrayFromVolume(out)
             self.assertEqual(int(result.max()), 200)
             self.assertEqual(int((result > 0).sum()), 4 * 4 * 4)
@@ -947,8 +906,7 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
             scene.connect_ports(src.get_port('volume_out', is_input=False),
                                 filt.get_port('volume_in',  is_input=True))
 
-            # Default filter is Gradient Magnitude: the 200-valued block's
-            # faces must produce nonzero gradients.
+            # Default filter is Gradient Magnitude: the 200-valued block's faces must produce nonzero gradients.
             Executor(scene).execute_up_to(filt)
             out = filt.node_data.get_cached_output('volume_out')
             self.assertIsNotNone(out)
@@ -956,8 +914,7 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
             result = slicer.util.arrayFromVolume(out)
             self.assertGreater(float(result.max()), 0.0)
 
-            # The slow-filter guard: N4 must flip AUTO_EXECUTE off,
-            # cheap filters back on.
+            # The slow-filter guard: N4 must flip AUTO_EXECUTE off, cheap filters back on.
             filt.node_data.set_property('filter', 'N4 Bias Field Correction')
             self.assertFalse(filt.node_data.AUTO_EXECUTE)
             filt.node_data.set_property('filter', 'Invert Intensity')
@@ -970,9 +927,7 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
             self._dispose_graph_scene(scene, extra)
 
     def test_VolumeRenderingDisplayStability(self):
-        """The VR node must keep ONE display node (ROI + transfer
-        function) when its input volume's identity changes, e.g. from a
-        D-key passthrough swapping which upstream volume flows in."""
+        """The VR node must keep ONE display node (ROI + transfer function) when its input volume's identity changes, e.g. from a D-key passthrough swapping which upstream volume flows in."""
         self.delayDisplay("Testing VR display node stability")
         import numpy as np
         from Nodes import VolumeRenderingNode
@@ -989,8 +944,7 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
             self.assertEqual(dn_first.GetDisplayableNode().GetID(),
                              volA.GetID())
 
-            # Identity switch (what a passthrough toggle does): the SAME
-            # display node must move to the new volume, not be replaced.
+            # Identity switch (what a passthrough toggle does): the SAME display node must move to the new volume, not be replaced.
             vr.execute({'volume_in': volB})
             self.assertEqual(vr._vr_display_node.GetID(), dn_first.GetID())
             self.assertEqual(vr._vr_display_node.GetDisplayableNode().GetID(),
@@ -1042,8 +996,7 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
             scene.connect_ports(src.get_port('volume_out', is_input=False),
                                 thresh.get_port('volume_in',  is_input=True))
 
-            # errorDisplay pops a modal dialog outside testing mode; swap it
-            # out so the test runs unattended either way.
+            # errorDisplay pops a modal dialog outside testing mode; swap it out so the test runs unattended either way.
             original_error_display = slicer.util.errorDisplay
             slicer.util.errorDisplay = lambda *a, **k: print(f"[test] {a}")
             try:
@@ -1051,8 +1004,7 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
             finally:
                 slicer.util.errorDisplay = original_error_display
 
-            # The source failed: it carries the error, and the downstream
-            # threshold must NOT have run against missing input.
+            # The source failed: it carries the error, and the downstream threshold must NOT have run against missing input.
             self.assertIsNotNone(src.node_data._last_error)
             self.assertTrue(src.node_data.is_dirty)
             self.assertTrue(thresh.node_data.is_dirty)
@@ -1063,7 +1015,7 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
             self._dispose_graph_scene(scene)
 
     def test_SerialisationRoundTrip(self):
-        self.delayDisplay("Testing serialisation round trip")
+        self.delayDisplay("Testing serialization round trip")
         from NodeGraph import NodeEditorScene
         from NodeGraph.scene import GRAPH_FORMAT_VERSION
         from Nodes     import ThresholdNode, GaussianSmoothNode
@@ -1095,4 +1047,4 @@ class SlicerNodeEditorTest(ScriptedLoadableModuleTest):
             restored.deserialise(
                 {'version': GRAPH_FORMAT_VERSION + 1,
                  'nodes': [], 'edges': []}, None)
-        self.delayDisplay("Serialisation round trip OK")
+        self.delayDisplay("Serialization round trip OK")

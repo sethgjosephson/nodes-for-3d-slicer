@@ -27,12 +27,15 @@ NodeGraph/
   viewer_router.py       viewer slots 1..10
 Nodes/
   base_node.py           SlicerBaseNode, LinkedModuleNode, port types
-  io_nodes.py            Sample Data, Load / Save Volume, Volumes, Markups
+  io_nodes.py            Sample Data, Load / Save Volume, Save Data, New Markup, Volumes, Markups
   filter_nodes.py        Threshold, Gaussian Smooth, Median Filter
   simple_filter_node.py  Simple Filter
   process_nodes.py       Crop Volume
+  resample_nodes.py      Resample Volume, Volume Math
   segment_nodes.py       Segmentation, Segment Editor, Segmentations
+  segment_ops_nodes.py   Segment Filter, Surface Model, Segment Statistics, Mask Volume, Label Map to Segmentation
   register_nodes.py      Registration, Apply Transform, Transforms
+  diffusion_nodes.py     Sample DWI, DWI Mask, Tensor Estimation, Tensor Scalars, Tractography, Tractography Display, Fiber Measurements
   viz_nodes.py           Volume Rendering, Models
   layout_node.py         Layout
   __init__.py            node registry

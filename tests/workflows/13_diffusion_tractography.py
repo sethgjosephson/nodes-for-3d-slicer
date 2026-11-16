@@ -1,6 +1,4 @@
-# extensions: SlicerDMRI
-# The diffusion MRI pipeline: DWI -> mask -> tensor -> FA and MD ->
-# tractography -> fiber measurements.
+# extensions: SlicerDMRI The diffusion MRI pipeline: DWI -> mask -> tensor -> FA and MD -> tractography -> fiber measurements.
 import os
 
 import numpy as np

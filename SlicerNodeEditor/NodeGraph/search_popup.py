@@ -2,8 +2,7 @@
 SearchPopup: Tab-key node-search overlay.
 
 Press Tab anywhere on the canvas → popup appears at cursor.
-Type to filter the node list, arrow-keys to navigate,
-Enter or double-click to place the selected node, Escape to dismiss.
+Type to filter the node list, arrow-keys to navigate, Enter or double-click to place the selected node, Escape to dismiss.
 """
 
 from ._qt import (QWidget, QVBoxLayout, QLineEdit, QListWidget, QListWidgetItem,
@@ -160,9 +159,7 @@ class SearchPopup(QWidget):
                    or text in cls.CATEGORY.lower()]
 
         def rank(cls):
-            # Names that start with the text first, then names with a
-            # word that starts with it, then other name matches, then
-            # nodes that match only by category.
+            # Names that start with the text first, then names with a word that starts with it, then other name matches, then nodes that match only by category.
             name = cls.NODE_NAME.lower()
             if name.startswith(text):
                 tier = 0

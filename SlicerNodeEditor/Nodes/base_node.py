@@ -2,19 +2,14 @@
 SlicerBaseNode, the pure-Python base class for all pipeline nodes.
 
 NodeItem (QGraphicsObject) wraps this for canvas representation.
-Subclasses declare ports and properties as class attributes, then
-implement execute() and optionally route_to_viewer().
+Subclasses declare ports and properties as class attributes, then implement execute() and optionally route_to_viewer().
 
-This module also exposes the graph-ownership helpers
-(`_mark_ephemeral`, `_adopt_into_graph_folder`) used by every wrapper
-that creates MRML nodes, so those nodes end up grouped in the
-"Node Editor (auto)" Subject Hierarchy folder and are skipped on
+This module also exposes the graph-ownership helpers (`_mark_ephemeral`, `_adopt_into_graph_folder`) used by every wrapper that creates MRML nodes, so those nodes end up grouped in the "Node Editor (auto)" Subject Hierarchy folder and are skipped on
 .mrb save by default.
 """
 
 # ---------------------------------------------------------------------------
-# Debug logging: set SLICER_NODE_EDITOR_DEBUG=1 in the environment to see
-# every swallowed exception and setter miss that is silent by default.
+# Debug logging: set SLICER_NODE_EDITOR_DEBUG=1 in the environment to see every swallowed exception and setter miss that is silent by default.
 # ---------------------------------------------------------------------------
 
 import os
@@ -40,7 +35,7 @@ TABLE         = "table"
 PLOT          = "plot"
 TEXT          = "text"
 COLOR         = "color"
-SEQUENCE      = "sequence"   # reserved for Phase F (4D data)
+SEQUENCE      = "sequence"   # reserved for 4D data
 DWI           = "dwi"        # diffusion-weighted volume
 TENSOR        = "tensor"     # diffusion tensor volume
 FIBERS        = "fibers"     # fiber bundle (tractography)
@@ -48,8 +43,7 @@ ANY           = "any"
 
 
 # ---------------------------------------------------------------------------
-# Graph-ownership helpers: mark MRML nodes as graph-owned and group them
-# under a Subject Hierarchy folder so they do not clutter the Data module.
+# Graph-ownership helpers: mark MRML nodes as graph-owned and group them under a Subject Hierarchy folder so they do not clutter the Data module.
 # ---------------------------------------------------------------------------
 
 NODE_EDITOR_FOLDER_NAME = "Node Editor (auto)"
@@ -58,9 +52,8 @@ NODE_EDITOR_FOLDER_ATTR = "NodeEditor.AutoFolder"
 
 def _get_or_create_graph_folder():
     """
-    Return the Subject Hierarchy item ID of the folder we park graph-owned
-    nodes under, creating it on first use. Returns 0 if the SH node is
-    unavailable (e.g. early in module load).
+    Return the Subject Hierarchy item ID of the folder we park graph-owned nodes under, creating it on first use.
+    Returns 0 if the SH node is unavailable (e.g. early in module load).
     """
     import slicer
     import vtk
@@ -97,9 +90,8 @@ def _get_or_create_graph_folder():
 
 def _adopt_into_graph_folder(mrml_node):
     """
-    Reparent the given data node under the Node Editor (auto) folder in
-    Subject Hierarchy. Safe to call on nodes that have no SH item yet
-    (does nothing in that case).
+    Reparent the given data node under the Node Editor (auto) folder in Subject Hierarchy.
+    Safe to call on nodes that have no SH item yet (does nothing in that case).
     """
     if mrml_node is None:
         return
@@ -127,11 +119,9 @@ def _mark_ephemeral(mrml_node):
       2. Reparent the node under the Node Editor (auto) folder for
          visual grouping in the Data module.
 
-    NOTE: we deliberately do NOT call SetHideFromEditors(True). Graph
-    nodes stay visible in the Data module and in node selectors;
-    they're just neatly grouped under one folder. Use a stronger
-    "hide entirely" helper later if a node should be fully internal
-    (e.g. a transient parameter node).
+    NOTE: we deliberately do NOT call SetHideFromEditors(True).
+    Graph nodes stay visible in the Data module and in node selectors; they're just neatly grouped under one folder.
+    Use a stronger "hide entirely" helper later if a node should be fully internal (e.g. a transient parameter node).
     """
     if mrml_node is None:
         return
@@ -162,20 +152,15 @@ def _mark_ephemeral(mrml_node):
 
 
 # ---------------------------------------------------------------------------
-# Content stamps: tell a change of an MRML node's data apart from a change
-# of its metadata.
+# Content stamps: tell a change of an MRML node's data apart from a change of its metadata.
 # ---------------------------------------------------------------------------
 
 def _content_stamp(mrml_node):
     """
-    Return a comparable value that changes when the data carried by
-    `mrml_node` changes, and stays the same when only its metadata does.
+    Return a comparable value that changes when the data carried by `mrml_node` changes, and stays the same when only its metadata does.
 
-    Slicer fires ModifiedEvent on a node for many reasons that leave the
-    data alone: a rename, a new display node, a Subject Hierarchy move,
-    work Slicer defers to the event loop after a node is created.
-    Treating each of those as an input change marks freshly run nodes
-    dirty again, so input observers compare stamps instead.
+    Slicer fires ModifiedEvent on a node for many reasons that leave the data alone: a rename, a new display node, a Subject Hierarchy move, work Slicer defers to the event loop after a node is created.
+    Treating each of those as an input change marks freshly run nodes dirty again, so input observers compare stamps instead.
     """
     if mrml_node is None:
         return None
@@ -268,7 +253,7 @@ class SlicerBaseNode:
     ─────────────────────────────────────────────
     NODE_NAME   : str   display name on the canvas
     CATEGORY    : str   groups the node in the Tab search menu
-    NODE_COLOR  : (R,G,B)  overrides the category title-bar colour if set
+    NODE_COLOR  : (R,G,B)  overrides the category title-bar color if set
 
     INPUT_PORTS / OUTPUT_PORTS
         list of (port_name: str, display_label: str, data_type: str)
@@ -277,12 +262,12 @@ class SlicerBaseNode:
     PROPERTIES
         list of dicts describing editable parameters:
         {
-          'name':    str,           unique key
-          'label':   str,           shown in properties panel
-          'type':    'float'|'int'|'str'|'enum'|'bool',
+          'name': str, unique key
+          'label': str, shown in properties panel
+          'type': 'float'|'int'|'str'|'enum'|'bool',
           'default': value,
           # optional:
-          'min': float,  'max': float,   # for float/int
+          'min': float, 'max': float,   # for float/int
           'items': [str, ...],            # for enum
         }
     """
@@ -291,99 +276,74 @@ class SlicerBaseNode:
     CATEGORY     = "Utilities"
     NODE_COLOR   = None           # None → use CAT_COLOR[CATEGORY]
 
-    # Stable identifier written into saved graphs. Defaults to the class
-    # name; set explicitly if a class is ever renamed so old graph files
-    # keep loading. Resolved through Nodes.NODE_TYPE_REGISTRY.
+    # Stable identifier written into saved graphs.
+    # Defaults to the class name; set explicitly if a class is ever renamed so old graph files keep loading.
+    # Resolved through Nodes.NODE_TYPE_REGISTRY.
     NODE_TYPE    = None
 
-    # True for nodes whose canonical content is hand-edited state
-    # (Segment Editor strokes, markup placements). Their output cannot be
-    # recomputed from upstream, so when an upstream input changes the node
-    # shows a stale-input warning badge instead of silently re-cooking.
+    # True for nodes whose canonical content is hand-edited state (Segment Editor strokes, markup placements).
+    # Their output cannot be recomputed from upstream, so when an upstream input changes the node shows a stale-input warning badge instead of silently re-running.
     EDIT_STATE   = False
 
     INPUT_PORTS  = []
     OUTPUT_PORTS = []
     PROPERTIES   = []
 
-    # Optional: name of a Slicer module whose widget should be shown in the
-    # left panel when this node is selected (e.g. 'VolumeRendering',
-    # 'SegmentEditor').  When set, Slicer auto-switches to that module
-    # and `configure_module_widget` is called to point it at this node's
-    # data.  When None (default), the standard PROPERTIES form is built
-    # in the Node Editor's own properties panel.
+    # Optional: name of a Slicer module whose widget should be shown in the left panel when this node is selected (e.g. 'VolumeRendering', 'SegmentEditor').
+    # When set, Slicer auto-switches to that module and `configure_module_widget` is called to point it at this node's data.
+    # When None (default), the standard PROPERTIES form is built in the Node Editor's own properties panel.
     LINKED_MODULE = None
 
-    # If True (default), this node participates in the "auto-rerun on
-    # property change" loop: editing any node's parameter schedules a
-    # debounced re-execution of whichever node is currently in the active
-    # viewer slot, walking back through dirty ancestors as usual.
-    # Set False on expensive operations (long-running CLI, file load,
-    # interactive editing); they still re-run when the user presses 1
-    # explicitly, but the auto loop will refuse to fire if it would
-    # require running them.
+    # If True (default), this node participates in the "auto-rerun on property change" loop: editing any node's parameter schedules a debounced re-execution of whichever node is currently in the active viewer slot, walking back through dirty ancestors as usual.
+    # Set False on expensive operations (long-running CLI, file load, interactive editing); they still re-run when the user presses 1 explicitly, but the auto loop will refuse to fire if it would require running them.
     AUTO_EXECUTE = True
 
-    # After an automatic re-run the views are left alone unless the node
-    # now shows a different MRML node, so the user keeps their zoom, pan
-    # and layout while dragging a slider. Set True on a node whose own
-    # properties decide what the views show (a layout choice).
+    # After an automatic re-run the views are left alone unless the node now shows a different MRML node, so the user keeps their zoom, pan and layout while dragging a slider.
+    # Set True on a node whose own properties decide what the views show (a layout choice).
     ROUTE_ON_PROPERTY_CHANGE = False
 
     # ------------------------------------------------------------------
 
     def __init__(self):
-        # Identity of this node within its graph, written into saved
-        # graphs. Undo and redo use it to match a restored node to the
-        # live one so its computed outputs are kept, not rebuilt.
+        # Identity of this node within its graph, written into saved graphs.
+        # Undo and redo use it to match a restored node to the live one so its computed outputs are kept, not rebuilt.
         import uuid
         self.uid        = uuid.uuid4().hex
         self._props     = {p['name']: p['default'] for p in self.PROPERTIES}
-        # _cache: what DOWNSTREAM sees on each port. Mirrors execute()'s
-        # return AND gets overwritten by passthrough when this node is
-        # disabled (so downstream reads upstream's value).
+        # _cache: what DOWNSTREAM sees on each port.
+        # Mirrors execute()'s return AND gets overwritten by passthrough when this node is disabled (so downstream reads upstream's value).
         self._cache     = {}
-        # _owned_outputs: MRML nodes THIS node personally created and is
-        # responsible for. Passthrough does NOT touch this. Reused on
-        # subsequent execute() calls so each node keeps writing back to
-        # the same MRML node instead of polluting an upstream input.
+        # _owned_outputs: MRML nodes THIS node personally created and is responsible for.
+        # Passthrough does NOT touch this.
+        # Reused on subsequent execute() calls so each node keeps writing back to the same MRML node instead of polluting an upstream input.
         self._owned_outputs = {}
         self.is_dirty   = True    # True → needs re-execution
         self.is_disabled = False  # D key: skip execute(), pass inputs through
 
-        # Set to the exception text when the last execute() raised; the
-        # canvas paints a red error badge while this is non-None. Cleared
-        # at the start of every run.
+        # Set to the exception text when the last execute() raised; the canvas paints a red error badge while this is non-None.
+        # Cleared at the start of every run.
         self._last_error = None
 
-        # EDIT_STATE nodes only: True when an upstream input changed under
-        # hand-edited content, so that content may be misaligned with its
-        # source. Cleared when the user double-clicks the node (opening
-        # its editor counts as acknowledging the warning).
+        # EDIT_STATE nodes only: True when an upstream input changed under hand-edited content, so that content may be misaligned with its source.
+        # Cleared when the user double-clicks the node (opening its editor counts as acknowledging the warning).
         self.stale_input = False
 
-        # MRML ModifiedEvent observers on the node's CURRENT input MRML
-        # nodes.  Maintained by _refresh_input_observers() which the
-        # executor calls right after resolving inputs.  Keyed by input
-        # port name; value is (mrml_node, [observer_tag, ...]).
+        # MRML ModifiedEvent observers on the node's CURRENT input MRML nodes.
+        # Maintained by _refresh_input_observers() which the executor calls right after resolving inputs.
+        # Keyed by input port name; value is (mrml_node, [observer_tag, ...]).
         self._input_observers = {}
-        # Content stamp of each input as of the last time the inputs
-        # were bound, keyed by input port name. See _content_stamp.
+        # Content stamp of each input as of the last time the inputs were bound, keyed by input port name.
+        # See _content_stamp.
         self._input_stamps = {}
 
-        # Reentrance flag: set True while our own execute() runs, so any
-        # ModifiedEvent fired by our own activity (e.g. writing to an
-        # output node that's also an upstream-shared MRML node) doesn't
-        # bounce back through our observer and falsely mark us dirty.
+        # Reentrance flag: set True while our own execute() runs, so any ModifiedEvent fired by our own activity (e.g. writing to an output node that's also an upstream-shared MRML node) doesn't bounce back through our observer and falsely mark us dirty.
         self._self_modified = False
 
-        # Debounce flag: True while a dirty-mark is already pending via
-        # QTimer.singleShot, so a burst of ModifiedEvents only fires one
-        # dirty propagation.
+        # Debounce flag: True while a dirty-mark is already pending via QTimer.singleShot, so a burst of ModifiedEvents only fires one dirty propagation.
         self._dirty_pending = False
 
-        # MRML nodes this node uses as hand-adjustable settings (a crop
-        # ROI). Keyed by a name; value is [mrml_node, tags, stamp].
+        # MRML nodes this node uses as hand-adjustable settings (a crop ROI).
+        # Keyed by a name; value is [mrml_node, tags, stamp].
         # See _watch_setting_node.
         self._setting_observers = {}
         self._setting_pending = False
@@ -396,7 +356,7 @@ class SlicerBaseNode:
         return self._props.get(name)
 
     def set_property(self, name, value):
-        """Update a parameter value.  Caller is responsible for dirty propagation."""
+        """Update a parameter value. Caller is responsible for dirty propagation."""
         self._props[name] = value
         self.is_dirty = True
 
@@ -436,13 +396,10 @@ class SlicerBaseNode:
 
     def route_fullscreen(self):
         """
-        Apply this node's cached output to Slicer's viewer in a
-        single-pane fullscreen layout, hiding the auxiliary views.
+        Apply this node's cached output to Slicer's viewer in a single-pane fullscreen layout, hiding the auxiliary views.
 
-        Default implementation: walk our OUTPUT_PORTS, find a volume- or
-        labelmap-typed one, and route it to the single red slice view
-        via _route_volume_fullscreen. Override when the node's output
-        is best shown another way (e.g. VolumeRendering uses pure 3D).
+        Default implementation: walk our OUTPUT_PORTS, find a volume- or labelmap-typed one, and route it to the single red slice view via _route_volume_fullscreen.
+        Override when the node's output is best shown another way (e.g. VolumeRendering uses pure 3D).
 
         Falls back to route_to_viewer when no volume output is available.
         """
@@ -465,23 +422,18 @@ class SlicerBaseNode:
 
     def build_properties_widget(self, parent, node_item):
         """
-        Optional hook: return a fully-built QWidget to embed in the
-        properties panel.  Return None (default) to fall back to the
-        auto-generated PROPERTIES form.
+        Optional hook: return a fully-built QWidget to embed in the properties panel.
+        Return None (default) to fall back to the auto-generated PROPERTIES form.
 
-        Most nodes should use LINKED_MODULE instead: set that to the
-        name of a Slicer module and Slicer's own widget for that module
-        will be shown in the left panel.  This hook is for nodes that
-        want a fully bespoke widget.
+        Most nodes should use LINKED_MODULE instead: set that to the name of a Slicer module and Slicer's own widget for that module will be shown in the left panel.
+        This hook is for nodes that want a fully bespoke widget.
         """
         return None
 
     def configure_module_widget(self, module_widget, node_item):
         """
-        Called after Slicer switches to LINKED_MODULE.  Override to
-        point the module widget at this node's data, typically by
-        calling its `setMRMLVolumeNode(...)` / `setSegmentationNode(...)`
-        / similar setter with the value cached on this node.
+        Called after Slicer switches to LINKED_MODULE.
+        Override to point the module widget at this node's data, typically by calling its `setMRMLVolumeNode(...)`, `setSegmentationNode(...)` or similar setter with the value cached on this node.
         """
         pass
 
@@ -494,11 +446,8 @@ class SlicerBaseNode:
 
     def _get_or_create_output(self, port_name, name_hint):
         """
-        Return the MRML node this node owns for port_name, creating it
-        on first use. Read from _owned_outputs (NOT _cache) so that
-        passthrough (which writes upstream refs into _cache while a
-        node is disabled) never tricks us into mutating an upstream
-        input's MRML data on the next enabled execute().
+        Return the MRML node this node owns for port_name, creating it on first use.
+        Read from _owned_outputs (NOT _cache) so that passthrough (which writes upstream refs into _cache while a node is disabled) never tricks us into mutating an upstream input's MRML data on the next enabled execute().
         """
         import slicer
         existing = self._owned_outputs.get(port_name)
@@ -519,10 +468,9 @@ class SlicerBaseNode:
 
     def release_outputs(self):
         """
-        Remove from the MRML scene every node this graph node created,
-        and forget all cached references. Called when the graph node is
-        deleted. Subclasses that create MRML nodes outside _owned_outputs
-        (display nodes, parameter nodes, loaded sample sets) extend this.
+        Remove from the MRML scene every node this graph node created, and forget all cached references.
+        Called when the graph node is deleted.
+        Subclasses that create MRML nodes outside _owned_outputs (display nodes, parameter nodes, loaded sample sets) extend this.
         """
         self._clear_input_observers()
         self._clear_setting_observers()
@@ -538,16 +486,11 @@ class SlicerBaseNode:
 
     def _notify_async_complete(self, success=True, error_message=None):
         """
-        Call from an async node's completion callback once its CLI has
-        finished writing real data into the placeholder outputs.
+        Call from an async node's completion callback once its CLI has finished writing real data into the placeholder outputs.
 
-        On success: marks this node clean, marks everything downstream
-        dirty (the executor blocked descendants while we were pending, so
-        they never saw the placeholder data), repaints, and re-cooks the
-        active viewer slot if this node feeds it.
+        On success: marks this node clean, marks everything downstream dirty (the executor blocked descendants while we were pending, so they never saw the placeholder data), repaints, and re-runs the active viewer slot if this node feeds it.
 
-        On failure: records the error for the canvas badge and leaves the
-        node dirty so the next press-1 retries.
+        On failure: records the error for the canvas badge and leaves the node dirty so the next press-1 retries.
         """
         self._async_pending = False
         node_item = getattr(self, '_executing_node_item', None)
@@ -588,8 +531,7 @@ class SlicerBaseNode:
                 for e in scene.get_outgoing_edges(current):
                     stack.append(e.target_port.node_item)
 
-        # If the active viewer slot shows us or a descendant, re-cook it
-        # now so the user's view updates without another keypress.
+        # If the active viewer slot shows us or a descendant, re-run it now so the user's view updates without another keypress.
         router = getattr(scene, '_router_ref', None)
         if router is None:
             return
@@ -608,16 +550,11 @@ class SlicerBaseNode:
 
     def _refresh_input_observers(self, node_item):
         """
-        Rebind ModifiedEvent observers on the MRML nodes currently feeding
-        this node's inputs.  Called by the executor after it resolves
-        inputs for a given _run_node call, so observers always reflect
-        the actual current graph topology and upstream cache state.
+        Rebind ModifiedEvent observers on the MRML nodes currently feeding this node's inputs.
+        Called by the executor after it resolves inputs for a given _run_node call, so observers always reflect the actual current graph topology and upstream cache state.
 
-        When any of those upstream MRML nodes is later modified by any
-        source (user edit in another module, a script, another graph
-        node), our callback marks this node dirty and propagates dirty
-        downstream.  Debounced via QTimer (B.2) so a burst of
-        ModifiedEvents only triggers one dirty pass.
+        When any of those upstream MRML nodes is later modified by any source (user edit in another module, a script, another graph node), our callback marks this node dirty and propagates dirty downstream.
+        Debounced via QTimer (B.2) so a burst of ModifiedEvents only triggers one dirty pass.
 
         Skipped silently if we have no scene reference yet.
         """
@@ -671,13 +608,9 @@ class SlicerBaseNode:
 
     def _watch_setting_node(self, key, mrml_node):
         """
-        Treat `mrml_node` (an ROI, a markup) as one of this node's
-        settings: when the user changes it in the views, this node and
-        everything downstream is marked dirty and the viewed slot re-runs,
-        the same as after a change in the properties panel.
+        Treat `mrml_node` (an ROI, a markup) as one of this node's settings: when the user changes it in the views, this node and everything downstream is marked dirty and the viewed slot re-runs, the same as after a change in the properties panel.
 
-        Call at the end of execute(), which also records the node's
-        current state as the one the outputs were computed from.
+        Call at the end of execute(), which also records the node's current state as the one the outputs were computed from.
         """
         current = self._setting_observers.get(key)
         if current is not None and current[0] is mrml_node:
@@ -720,8 +653,8 @@ class SlicerBaseNode:
         return False
 
     def _on_setting_changed(self, key, mrml_node):
-        """Hook: a watched setting node changed. Subclasses copy its
-        state into their properties so it is saved with the graph."""
+        """Hook: a watched setting node changed.
+        Subclasses copy its state into their properties so it is saved with the graph."""
         pass
 
     def _on_setting_modified(self, key):
@@ -759,8 +692,8 @@ class SlicerBaseNode:
             _fire()
 
     def _input_content_changed(self, port_name=None):
-        """True if an observed input's data differs from what this node
-        last bound to. With a port name, checks that input only."""
+        """True if an observed input's data differs from what this node last bound to.
+        With a port name, checks that input only."""
         for name, (mrml_node, _tags) in list(self._input_observers.items()):
             if port_name is not None and name != port_name:
                 continue
@@ -774,18 +707,12 @@ class SlicerBaseNode:
     def _on_input_modified(self, node_item, up_node_data=None,
                            port_name=None):
         """
-        Observer callback (debounced).  An upstream MRML node fired a
-        ModifiedEvent.  Mark this graph node and everything downstream
-        dirty, and repaint to show the dirty indicator.
+        Observer callback (debounced).
+        An upstream MRML node fired a ModifiedEvent.
+        Mark this graph node and everything downstream dirty, and repaint to show the dirty indicator.
 
-        Suppressed when self._self_modified is set (we're inside our own
-        execute() and the Modified event is a side-effect of our own
-        write) AND when the upstream graph node is inside ITS execute():
-        that write is graph-internal, the executor already runs us in the
-        same pass, and scheduling a dirty mark here would land after the
-        pass and falsely re-dirty a freshly-cleaned chain. External edits
-        (other modules, scripts, the user) are still detected because
-        they happen outside any execute() window.
+        Suppressed when self._self_modified is set (we're inside our own execute() and the Modified event is a side-effect of our own write) AND when the upstream graph node is inside ITS execute(): that write is graph-internal, the executor already runs us in the same pass, and scheduling a dirty mark here would land after the pass and falsely re-dirty a freshly-cleaned chain.
+        External edits (other modules, scripts, the user) are still detected because they happen outside any execute() window.
         """
         if self._self_modified:
             return
@@ -794,33 +721,28 @@ class SlicerBaseNode:
             return
         if self._dirty_pending:
             return
-        # Metadata-only events (rename, display node, Subject Hierarchy)
-        # leave the data as this node last saw it: not an input change.
+        # Metadata-only events (rename, display node, Subject Hierarchy) leave the data as this node last saw it: not an input change.
         if not self._input_content_changed(port_name):
             return
         self._dirty_pending = True
 
         def _fire():
             self._dirty_pending = False
-            # The graph may have re-run this node between the event and
-            # now, binding it to the new data. Then there is nothing to do.
+            # The graph may have re-run this node between the event and now, binding it to the new data.
+            # Then there is nothing to do.
             if not self._input_content_changed():
                 return
             self.mark_dirty()
-            # Hand-edited content cannot be re-cooked from upstream; flag
-            # that it may now be misaligned with its changed input.
+            # Hand-edited content cannot be re-run from upstream; flag that it may now be misaligned with its changed input.
             if self.EDIT_STATE:
                 self.stale_input = True
-            # This fires 100 ms after scheduling; the canvas item or its
-            # scene may have been deleted in between (module reload,
-            # graph clear, test teardown). A call into a dead PythonQt
-            # wrapper can hard-crash Slicer, so guard the entire block.
+            # This fires 100 ms after scheduling; the canvas item or its scene may have been deleted in between (module reload, graph clear, test teardown).
+            # A call into a dead PythonQt wrapper can hard-crash Slicer, so guard the entire block.
             try:
                 scene = node_item.scene() if node_item is not None else None
                 if scene is not None and hasattr(scene, 'mark_dirty_from'):
                     scene.mark_dirty_from(node_item)
-                    # Same as a property change: if the viewed chain can
-                    # re-run by itself, it does.
+                    # Same as a property change: if the viewed chain can re-run by itself, it does.
                     scene.notify_property_changed(node_item)
                 elif node_item is not None:
                     node_item.update()
@@ -844,10 +766,8 @@ class SlicerBaseNode:
 
 class LinkedModuleNode(SlicerBaseNode):
     """
-    Base class for nodes that are *thin wrappers* around an existing
-    Slicer module.  When the user double-clicks the node, Slicer
-    switches to LINKED_MODULE and the module's native widget shows up
-    in the left panel, pre-configured to point at this node's data.
+    Base class for nodes that are *thin wrappers* around an existing Slicer module.
+    When the user double-clicks the node, Slicer switches to LINKED_MODULE and the module's native widget shows up in the left panel, pre-configured to point at this node's data.
 
     Subclasses typically only need to set:
       - LINKED_MODULE  : str    (the Slicer module name)
@@ -855,12 +775,10 @@ class LinkedModuleNode(SlicerBaseNode):
       - OUTPUT_PORTS   : list   (often a passthrough: same MRML node out)
       - INPUT_SETTERS  : dict   ({port_name: 'setterMethodName'} mapping
                                   how each input is pushed to the module
-                                  widget).  Multiple candidate setter
+                                  widget). Multiple candidate setter
                                   names may be supplied as a tuple.
 
-    `execute(inputs)` defaults to passthrough (each input becomes the
-    same-named output) so the data just flows through untouched;
-    visualization tweaks happen inside the linked module's widget.
+    `execute(inputs)` defaults to passthrough (each input becomes the same-named output) so the data just flows through untouched; visualization tweaks happen inside the linked module's widget.
     Override execute() if the node actually transforms data.
     """
 
@@ -876,9 +794,8 @@ class LinkedModuleNode(SlicerBaseNode):
             if value is None:
                 continue
             setters = (setter_spec,) if isinstance(setter_spec, str) else tuple(setter_spec)
-            # Every Slicer module widget implements setEditedNode: it
-            # selects the given node in the module. Module-specific
-            # setters are tried first, this one last.
+            # Every Slicer module widget implements setEditedNode: it selects the given node in the module.
+            # Module-specific setters are tried first, this one last.
             setters = setters + ('setEditedNode',)
             pushed = False
             for setter_name in setters:
@@ -912,8 +829,9 @@ class LinkedModuleNode(SlicerBaseNode):
         up = edge.source_port.node_item.node_data
         return up._cache.get(edge.source_port.port_name)
 
-    # Default execute: pure passthrough.  Each input maps to a same-named
-    # output if both ports exist.  Override for nodes that transform data.
+    # Default execute: pure passthrough.
+    # Each input maps to a same-named output if both ports exist.
+    # Override for nodes that transform data.
     def execute(self, inputs):
         result = {}
         out_names = {p[0] for p in self.OUTPUT_PORTS}

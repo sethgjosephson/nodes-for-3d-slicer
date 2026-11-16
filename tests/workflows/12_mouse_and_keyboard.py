@@ -1,6 +1,4 @@
-# The canvas driven by Qt input events delivered to the widgets, the way
-# the mouse and keyboard deliver them: Tab search, typing, port drags,
-# node drags, double-click, wheel zoom, middle-button pan.
+# The canvas driven by Qt input events delivered to the widgets, the way the mouse and keyboard deliver them: Tab search, typing, port drags, node drags, double-click, wheel zoom, middle-button pan.
 import qt
 
 g = G(editor)
@@ -18,8 +16,7 @@ def view_pos(scene_point):
 def mouse(kind, scene_point, button=qt.Qt.LeftButton, buttons=None):
     if buttons is None:
         buttons = button if kind != qt.QEvent.MouseButtonRelease else qt.Qt.NoButton
-    # The scene finds the item under the cursor from the screen position,
-    # so the event must carry one that matches its local position.
+    # The scene finds the item under the cursor from the screen position, so the event must carry one that matches its local position.
     local = view_pos(scene_point)
     screen = viewport.mapToGlobal(qt.QPoint(int(local.x()), int(local.y())))
     ev = qt.QMouseEvent(kind, local, qt.QPointF(screen.x(), screen.y()),

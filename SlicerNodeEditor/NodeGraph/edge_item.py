@@ -1,8 +1,7 @@
 """
 EdgeItem: QGraphicsPathItem drawing a bezier pipe between two ports.
 
-When target_port is None the edge is a "drag preview" and its far end
-follows self._float_end (a QPointF in scene coordinates).
+When target_port is None the edge is a "drag preview" and its far end follows self._float_end (a QPointF in scene coordinates).
 """
 
 from ._qt import (QGraphicsPathItem, QPointF, Qt,
@@ -26,9 +25,8 @@ class EdgeItem(QGraphicsPathItem):
         self._float_end  = QPointF(0, 0) # used when target_port is None
         self._drop_highlight = False     # set while a node is hovering for splice
 
-        # Below the nodes. Ports are children of their node, so an edge
-        # stacked above the node would also sit above its ports and take
-        # the click meant to start a second connection from a used port.
+        # Below the nodes.
+        # Ports are children of their node, so an edge stacked above the node would also sit above its ports and take the click meant to start a second connection from a used port.
         self.setZValue(-1)
         self.setFlag(self.ItemIsSelectable, True)
         self.setAcceptHoverEvents(True)

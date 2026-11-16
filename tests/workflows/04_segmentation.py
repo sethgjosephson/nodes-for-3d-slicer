@@ -1,5 +1,4 @@
-# Segment by threshold and by Otsu, hand the result to the Segment Editor
-# and Segmentations nodes, then change the source.
+# Segment by threshold and by Otsu, hand the result to the Segment Editor and Segmentations nodes, then change the source.
 import numpy as np
 
 g = G(editor)

@@ -1,5 +1,4 @@
-# Every Simple Filter, Median, Load Volume and Save Volume, and the Layout
-# node.
+# Every Simple Filter, Median, Load Volume and Save Volume, and the Layout node.
 import os
 
 import numpy as np
@@ -72,8 +71,7 @@ g.press('Del')
 
 section("every Simple Filter")
 from Nodes.simple_filter_node import FILTERS
-# Canny's thresholds are absolute gradient values; this small crop of
-# brain tissue needs lower ones than the defaults.
+# Canny's thresholds are absolute gradient values; this small crop of brain tissue needs lower ones than the defaults.
 filt = g.add('SimpleFilterNode', x=0, y=140, canny_lower=1.0, canny_upper=5.0)
 g.connect(load, 'volume_out', filt, 'volume_in')
 src_arr = array(loaded).astype(float)

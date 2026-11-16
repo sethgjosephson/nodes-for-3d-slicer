@@ -1,6 +1,4 @@
-# Closing the scene, clearing it from another module's test set-up and
-# reloading the demo, repeated: the sequence that once ended a session
-# without a traceback.
+# Closing the scene, clearing it from another module's test set-up and reloading the demo, repeated: the sequence that once ended a session without a traceback.
 g = G(editor)
 
 
@@ -65,9 +63,7 @@ wait(300)
 g2.select(g2.by_name("Volumes"))
 g2.press('1')
 check(not g2.errors(), f"no errors after reload ({g2.errors()})")
-# The old dock is removed from the window and deleted when control returns
-# to Qt's event loop, which does not happen inside this script; count the
-# docks that are still shown.
+# The old dock is removed from the window and deleted when control returns to Qt's event loop, which does not happen inside this script; count the docks that are still shown.
 docks = [d for d in slicer.util.mainWindow().findChildren('QDockWidget')
          if d.objectName == 'NodeEditorDock' and d.visible]
 check(len(docks) == 1, f"one canvas dock shown after reload ({len(docks)})")

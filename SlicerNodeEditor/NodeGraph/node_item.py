@@ -3,13 +3,13 @@ NodeItem: QGraphicsObject wrapping a SlicerBaseNode for canvas display.
 
 Layout (vertical pipeline, top-to-bottom data flow):
 
-    ● in0    ● in1          ← PortItems centred on top edge
+    ● in0    ● in1          ← PortItems centered on top edge
   ┌────────────────────┐
-  │▓▓ Node Name        │   ← coloured title bar
+  │▓▓ Node Name        │   ← colored title bar
   ├────────────────────┤
   │  [dirty●] [①]      │   ← body: dirty dot + viewer-slot badge
   └────────────────────┘
-       ● out0               ← PortItems centred on bottom edge
+       ● out0               ← PortItems centered on bottom edge
 
 Selecting a node emits node_selected(self) on the scene.
 """
@@ -31,7 +31,7 @@ from .constants import (
 
 
 class NodeItem(QGraphicsObject):
-    """Visual node on the canvas.  Wraps a SlicerBaseNode (logic/data)."""
+    """Visual node on the canvas. Wraps a SlicerBaseNode (logic/data)."""
 
     # Emitted when this node is clicked; scene re-emits for the panel.
     selected_changed = Signal(object)   # self  (never None from here)
@@ -49,7 +49,7 @@ class NodeItem(QGraphicsObject):
         self._body_h = NODE_BODY_HEIGHT + extra
         self._total_h = NODE_TITLE_HEIGHT + self._body_h
 
-        # Title-bar colour from category or explicit override
+        # Title-bar color from category or explicit override
         cat_color = node_data.NODE_COLOR or CAT_COLOR.get(
             node_data.CATEGORY, DEFAULT_CAT_COLOR)
         self._title_color = QColor(*cat_color)
@@ -94,8 +94,8 @@ class NodeItem(QGraphicsObject):
         body_rect  = QRectF(0, 0, NODE_WIDTH, self._total_h)
         title_rect = QRectF(0, 0, NODE_WIDTH, NODE_TITLE_HEIGHT)
 
-        # Dim the entire node when disabled. We restore opacity before
-        # painting the strike-through marker so it stays vivid.
+        # Dim the entire node when disabled.
+        # We restore opacity before painting the strike-through marker so it stays vivid.
         if disabled:
             painter.setOpacity(0.45)
 
@@ -161,9 +161,8 @@ class NodeItem(QGraphicsObject):
                     Qt.AlignCenter, indicator_label)
 
         # --- Stale-input warning (edit-state nodes only) ---
-        # Amber "!" left of the dirty indicator: an upstream input changed
-        # under hand-edited content, which may now be misaligned with its
-        # source. Cleared when the user double-clicks (opens the editor).
+        # Amber "!" left of the dirty indicator: an upstream input changed under hand-edited content, which may now be misaligned with its source.
+        # Cleared when the user double-clicks (opens the editor).
         if getattr(self.node_data, 'stale_input', False):
             warn_r = 5
             cx = NODE_WIDTH - warn_r - 6 - 14
@@ -209,15 +208,14 @@ class NodeItem(QGraphicsObject):
     # ------------------------------------------------------------------
 
     def mousePressEvent(self, event):
-        # Single click only selects / starts drag; the left panel does
-        # NOT update.  That happens on double-click.
+        # Single click only selects / starts drag; the left panel does NOT update.
+        # That happens on double-click.
         QGraphicsObject.mousePressEvent(self, event)
 
     def mouseDoubleClickEvent(self, event):
         QGraphicsObject.mouseDoubleClickEvent(self, event)
         if event.button() == Qt.LeftButton and self.scene() is not None:
-            # Opening the editor acknowledges the stale-input warning:
-            # the user is now looking at the possibly-misaligned content.
+            # Opening the editor acknowledges the stale-input warning: the user is now looking at the possibly-misaligned content.
             if getattr(self.node_data, 'stale_input', False):
                 self.node_data.stale_input = False
                 self.update()
@@ -227,13 +225,11 @@ class NodeItem(QGraphicsObject):
 
     def mouseReleaseEvent(self, event):
         QGraphicsObject.mouseReleaseEvent(self, event)
-        # After drag ends, give the scene a chance to auto-insert this
-        # node into a pipe if it was dropped on top of one.
+        # After drag ends, give the scene a chance to auto-insert this node into a pipe if it was dropped on top of one.
         scene = self.scene()
         if self._shaken_this_drag:
-            # The shake just spliced the edge back together, and that edge
-            # now runs under this node. Dropping here must not insert the
-            # node straight back into it.
+            # The shake just spliced the edge back together, and that edge now runs under this node.
+            # Dropping here must not insert the node straight back into it.
             self._shaken_this_drag = False
             if scene is not None and hasattr(scene, 'clear_drop_highlight'):
                 scene.clear_drop_highlight()
@@ -302,8 +298,7 @@ class NodeItem(QGraphicsObject):
         return list(self._output_ports.values())
 
     def set_property(self, name, value):
-        """Called by the properties panel; propagates dirty downstream and
-        kicks off the debounced auto-rerun on the active viewer slot."""
+        """Called by the properties panel; propagates dirty downstream and kicks off the debounced auto-rerun on the active viewer slot."""
         self.node_data.set_property(name, value)
         scene = self.scene()
         if scene is not None:
